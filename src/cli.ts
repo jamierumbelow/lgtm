@@ -76,6 +76,8 @@ program
             // Start a bun server to serve the HTML
             const port = parseInt(options.port, 10);
             console.log(chalk.cyan(`\n✨ Starting server at http://localhost:${port}`));
+            console.log(chalk.gray('Use Overview/Review toggle to switch modes'));
+            console.log(chalk.gray('In Review mode: ← → or j k to navigate, Esc to exit'));
             console.log(chalk.gray('Press Ctrl+C to stop\n'));
 
             const serverScript = `
@@ -101,7 +103,6 @@ program
               process.exit(1);
             });
 
-            // Keep the process alive
             process.on('SIGINT', () => {
               bunProcess.kill();
               process.exit(0);
