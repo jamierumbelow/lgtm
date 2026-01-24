@@ -1,9 +1,12 @@
 import { Analysis, ReviewQuestion } from '../analysis/analyzer.js';
 import { ChangeGroup } from '../analysis/chunker.js';
+import { marked } from 'marked';
 
 export function renderHTML(analysis: Analysis): string {
   const overviewContent = renderOverview(analysis);
+  const summarySlide = renderSummarySlide(analysis);
   const reviewSlides = renderReviewSlides(analysis);
+  const totalSlides = analysis.changeGroups.length + 1; // +1 for summary slide
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -599,31 +602,179 @@ export function renderHTML(analysis: Analysis): string {
       color: var(--text-muted);
       font-size: 16px;
     }
+
+    /* Summary Slide */
+    .summary-slide {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      padding: 60px 40px;
+      overflow: auto;
+    }
+
+    .summary-content {
+      max-width: 800px;
+      width: 100%;
+    }
+
+    .summary-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .summary-title {
+      font-size: 36px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      line-height: 1.3;
+    }
+
+    .summary-author {
+      font-size: 16px;
+      color: var(--text-muted);
+    }
+
+    .summary-author strong {
+      color: var(--text);
+    }
+
+    .summary-description {
+      margin-bottom: 48px;
+    }
+
+    .summary-description-content {
+      font-size: 16px;
+      line-height: 1.8;
+      color: var(--text);
+      background: var(--bg-secondary);
+      padding: 32px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .summary-description-content p {
+      margin-bottom: 16px;
+    }
+
+    .summary-description-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    .summary-description-content h1,
+    .summary-description-content h2,
+    .summary-description-content h3 {
+      border: none;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+
+    .summary-description-content h1:first-child,
+    .summary-description-content h2:first-child,
+    .summary-description-content h3:first-child {
+      margin-top: 0;
+    }
+
+    .summary-description-content ul,
+    .summary-description-content ol {
+      margin: 16px 0;
+      padding-left: 24px;
+    }
+
+    .summary-description-content li {
+      margin-bottom: 8px;
+    }
+
+    .summary-description-content code {
+      background: var(--bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .summary-description-content pre {
+      background: var(--bg);
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+
+    .summary-description-content pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .summary-description-content a {
+      color: var(--accent);
+    }
+
+    .summary-description-content blockquote {
+      border-left: 3px solid var(--border);
+      padding-left: 16px;
+      margin: 16px 0;
+      color: var(--text-muted);
+    }
+
+    .summary-stats {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      text-align: center;
+    }
+
+    .summary-stat {
+      text-align: center;
+    }
+
+    .summary-stat-value {
+      font-size: 36px;
+      font-weight: 600;
+    }
+
+    .summary-stat-value.green { color: var(--green); }
+    .summary-stat-value.red { color: var(--red); }
+
+    .summary-stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    .summary-hint {
+      margin-top: 48px;
+      font-size: 14px;
+      color: var(--text-muted);
+      text-align: center;
+    }
   </style>
 </head>
 <body>
   <div class="mode-toggle">
-    <button class="mode-btn active" id="overview-btn" onclick="switchMode('overview')">Overview</button>
-    <button class="mode-btn" id="review-btn" onclick="switchMode('review')">Review</button>
+    <button class="mode-btn" id="overview-btn" onclick="switchMode('overview')">Overview</button>
+    <button class="mode-btn active" id="review-btn" onclick="switchMode('review')">Review</button>
   </div>
 
   <!-- Overview Mode -->
-  <div id="overview-mode">
+  <div id="overview-mode" class="hidden">
     ${overviewContent}
   </div>
 
   <!-- Review Mode -->
-  <div id="review-mode">
+  <div id="review-mode" class="active">
     <div class="progress-bar" id="progress"></div>
     <div class="slides-container" id="slides">
-      ${reviewSlides || '<div class="slide active"><div class="empty-state">No changes to review</div></div>'}
+      ${summarySlide}
+      ${reviewSlides}
     </div>
     <nav class="navigation">
       <button class="nav-btn" id="prev-btn" onclick="prevSlide()">
         <span>←</span> Previous
       </button>
       <div class="nav-counter">
-        <span class="current" id="current-slide">1</span> / <span id="total-slides">${analysis.changeGroups.length || 1}</span>
+        <span class="current" id="current-slide">1</span> / <span id="total-slides">${totalSlides}</span>
       </div>
       <button class="nav-btn" id="next-btn" onclick="nextSlide()">
         Next <span>→</span>
@@ -635,9 +786,9 @@ export function renderHTML(analysis: Analysis): string {
   </div>
 
   <script>
-    let currentMode = 'overview';
+    let currentMode = 'review';
     let currentSlide = 0;
-    const totalSlides = ${analysis.changeGroups.length || 1};
+    const totalSlides = ${totalSlides};
 
     function switchMode(mode) {
       currentMode = mode;
@@ -675,7 +826,8 @@ export function renderHTML(analysis: Analysis): string {
     }
 
     function openReviewAt(index) {
-      currentSlide = index;
+      // +1 because summary slide is at index 0
+      currentSlide = index + 1;
       switchMode('review');
     }
 
@@ -695,10 +847,8 @@ export function renderHTML(analysis: Analysis): string {
       el.closest('.review-question-card').classList.toggle('expanded');
     }
 
-    // Initialize
-    if (totalSlides > 0) {
-      showSlide(0);
-    }
+    // Initialize - start in review mode on summary slide
+    showSlide(0);
   </script>
 </body>
 </html>`;
@@ -886,9 +1036,60 @@ function renderOverview(analysis: Analysis): string {
   `;
 }
 
+function renderSummarySlide(analysis: Analysis): string {
+  const descriptionHtml = analysis.description ? marked.parse(analysis.description) : '';
+
+  return `
+    <div class="slide active" data-index="0">
+      <div class="summary-slide">
+        <div class="summary-content">
+          <div class="summary-header">
+            <h1 class="summary-title">${escapeHtml(analysis.title || `${analysis.baseBranch} ← ${analysis.headBranch}`)}</h1>
+            <div class="summary-author">
+              ${analysis.author ? `By <strong>${escapeHtml(analysis.author)}</strong>` : ''}
+              ${analysis.prUrl ? ` · <a href="${escapeHtml(analysis.prUrl)}" style="color: var(--accent)">View on GitHub</a>` : ''}
+            </div>
+          </div>
+
+          ${analysis.description ? `
+            <div class="summary-description">
+              <div class="summary-description-content">
+                ${descriptionHtml}
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="summary-stats">
+            <div class="summary-stat">
+              <div class="summary-stat-value">${analysis.filesChanged}</div>
+              <div class="summary-stat-label">Files Changed</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-value green">+${analysis.additions}</div>
+              <div class="summary-stat-label">Additions</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-value red">-${analysis.deletions}</div>
+              <div class="summary-stat-label">Deletions</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-value">${analysis.changeGroups.length}</div>
+              <div class="summary-stat-label">Changesets</div>
+            </div>
+          </div>
+
+          <div class="summary-hint">
+            Press <kbd>→</kbd> or <kbd>j</kbd> to start reviewing
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderReviewSlides(analysis: Analysis): string {
   return analysis.changeGroups.map((group, index) =>
-    renderSlide(group, index, analysis)
+    renderSlide(group, index + 1, analysis) // +1 because summary is at index 0
   ).join('\n');
 }
 
