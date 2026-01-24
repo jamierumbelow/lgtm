@@ -1,4 +1,9 @@
 import { PRFile } from '../github/pr.js';
+import { splitChangesetsWithLLM } from '../llm/changeset-splitter.js';
+
+export interface ChunkOptions {
+  useLLM?: boolean;
+}
 
 export interface DiffHunk {
   oldStart: number;
@@ -118,7 +123,31 @@ export function parseDiff(diff: string): FileDiff[] {
 /**
  * Group diff hunks into logical change groups
  */
-export async function chunkDiff(diff: string, files: PRFile[]): Promise<ChangeGroup[]> {
+export async function chunkDiff(
+  diff: string,
+  files: PRFile[],
+  options: ChunkOptions = {}
+): Promise<ChangeGroup[]> {
+  const { useLLM = false } = options;
+
+  // Use LLM-powered splitting if enabled
+  if (useLLM) {
+    try {
+      return await splitChangesetsWithLLM(diff);
+    } catch (error) {
+      console.warn('LLM chunking failed, falling back to heuristic:', error);
+      // Fall through to heuristic approach
+    }
+  }
+
+  // Heuristic fallback: group by directory/module
+  return chunkDiffHeuristic(diff);
+}
+
+/**
+ * Heuristic-based chunking (fallback when LLM is unavailable)
+ */
+export function chunkDiffHeuristic(diff: string): ChangeGroup[] {
   const fileDiffs = parseDiff(diff);
   const groups: ChangeGroup[] = [];
 
@@ -144,9 +173,6 @@ export async function chunkDiff(diff: string, files: PRFile[]): Promise<ChangeGr
     };
     groups.push(group);
   }
-
-  // TODO: Use tree-sitter to further split groups by function/class boundaries
-  // TODO: Merge groups that touch the same logical unit across directories
 
   return groups;
 }

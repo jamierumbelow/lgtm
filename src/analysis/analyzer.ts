@@ -100,7 +100,7 @@ export async function analyzeChanges(prData: PRData, options: AnalyzeOptions): P
   const deletions = prData.files.reduce((sum, f) => sum + f.deletions, 0);
 
   // Chunk the diff into semantic groups
-  const changeGroups = await chunkDiff(prData.diff, prData.files);
+  const changeGroups = await chunkDiff(prData.diff, prData.files, { useLLM: options.useLLM });
 
   // Get contributors
   const filePaths = prData.files.map(f => f.path);
