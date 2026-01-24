@@ -604,27 +604,39 @@ export function renderHTML(analysis: Analysis): string {
     }
 
     /* Summary Slide */
-    .summary-slide {
-      display: flex;
+    .slide.summary.active {
       align-items: center;
       justify-content: center;
-      height: 100vh;
-      padding: 60px 40px;
-      overflow: auto;
+    }
+
+    .summary-slide {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: 80px 40px 120px;
+      overflow-y: auto;
     }
 
     .summary-content {
-      max-width: 800px;
+      max-width: 700px;
       width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     .summary-header {
       text-align: center;
-      margin-bottom: 48px;
+      margin-bottom: 40px;
+      width: 100%;
     }
 
     .summary-title {
-      font-size: 36px;
+      font-size: 32px;
       font-weight: 600;
       margin-bottom: 16px;
       line-height: 1.3;
@@ -640,21 +652,24 @@ export function renderHTML(analysis: Analysis): string {
     }
 
     .summary-description {
-      margin-bottom: 48px;
+      margin-bottom: 40px;
+      width: 100%;
     }
 
     .summary-description-content {
-      font-size: 16px;
-      line-height: 1.8;
+      font-size: 15px;
+      line-height: 1.7;
       color: var(--text);
       background: var(--bg-secondary);
-      padding: 32px;
+      padding: 24px;
       border-radius: 12px;
       border: 1px solid var(--border);
+      max-height: 300px;
+      overflow-y: auto;
     }
 
     .summary-description-content p {
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
     .summary-description-content p:last-child {
@@ -665,8 +680,9 @@ export function renderHTML(analysis: Analysis): string {
     .summary-description-content h2,
     .summary-description-content h3 {
       border: none;
-      margin-top: 24px;
-      margin-bottom: 12px;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      font-size: 1.1em;
     }
 
     .summary-description-content h1:first-child,
@@ -677,27 +693,27 @@ export function renderHTML(analysis: Analysis): string {
 
     .summary-description-content ul,
     .summary-description-content ol {
-      margin: 16px 0;
+      margin: 12px 0;
       padding-left: 24px;
     }
 
     .summary-description-content li {
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .summary-description-content code {
       background: var(--bg);
       padding: 2px 6px;
       border-radius: 4px;
-      font-size: 14px;
+      font-size: 13px;
     }
 
     .summary-description-content pre {
       background: var(--bg);
-      padding: 16px;
+      padding: 12px;
       border-radius: 8px;
       overflow-x: auto;
-      margin: 16px 0;
+      margin: 12px 0;
     }
 
     .summary-description-content pre code {
@@ -712,15 +728,14 @@ export function renderHTML(analysis: Analysis): string {
     .summary-description-content blockquote {
       border-left: 3px solid var(--border);
       padding-left: 16px;
-      margin: 16px 0;
+      margin: 12px 0;
       color: var(--text-muted);
     }
 
     .summary-stats {
       display: flex;
       justify-content: center;
-      gap: 48px;
-      text-align: center;
+      gap: 40px;
     }
 
     .summary-stat {
@@ -728,7 +743,7 @@ export function renderHTML(analysis: Analysis): string {
     }
 
     .summary-stat-value {
-      font-size: 36px;
+      font-size: 32px;
       font-weight: 600;
     }
 
@@ -736,7 +751,7 @@ export function renderHTML(analysis: Analysis): string {
     .summary-stat-value.red { color: var(--red); }
 
     .summary-stat-label {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -744,7 +759,7 @@ export function renderHTML(analysis: Analysis): string {
     }
 
     .summary-hint {
-      margin-top: 48px;
+      margin-top: 40px;
       font-size: 14px;
       color: var(--text-muted);
       text-align: center;
@@ -1040,7 +1055,7 @@ function renderSummarySlide(analysis: Analysis): string {
   const descriptionHtml = analysis.description ? marked.parse(analysis.description) : '';
 
   return `
-    <div class="slide active" data-index="0">
+    <div class="slide summary active" data-index="0">
       <div class="summary-slide">
         <div class="summary-content">
           <div class="summary-header">
