@@ -11,7 +11,15 @@ import { renderHTML } from './output/html.js';
 import { renderJSON } from './output/json.js';
 import { writeFileSync } from 'fs';
 import { spawn } from 'child_process';
-import { setAnthropicApiKey, deleteAnthropicApiKey, hasAnthropicApiKey } from './secrets.js';
+import {
+  setAnthropicApiKey,
+  deleteAnthropicApiKey,
+  hasAnthropicApiKey,
+  setOpenAIApiKey,
+  deleteOpenAIApiKey,
+  hasOpenAIApiKey,
+} from './secrets.js';
+import { select, password, confirm } from '@inquirer/prompts';
 import { getCached, setCache, clearCache, getCacheInfo } from './cache.js';
 
 const program = new Command();
@@ -21,64 +29,146 @@ program
   .description('Structured PR review companion - because "lgtm" should mean something')
   .version('0.1.0');
 
+// Helper functions for config TUI
+const getStatusIcon = (hasKey: boolean, hasEnvKey: boolean): string => {
+  if (hasEnvKey) return chalk.cyan('●');
+  if (hasKey) return chalk.green('●');
+  return chalk.dim('○');
+};
+
+const getStatusText = (hasKey: boolean, hasEnvKey: boolean): string => {
+  if (hasEnvKey) return chalk.cyan('(env)');
+  if (hasKey) return chalk.green('(keychain)');
+  return chalk.dim('(not set)');
+};
+
+const printStatus = async (): Promise<void> => {
+  const [hasAnthropic, hasOpenAI] = await Promise.all([
+    hasAnthropicApiKey(),
+    hasOpenAIApiKey(),
+  ]);
+  const hasAnthropicEnv = !!process.env.ANTHROPIC_API_KEY;
+  const hasOpenAIEnv = !!process.env.OPENAI_API_KEY;
+
+  console.log();
+  console.log(chalk.bold('  API Keys'));
+  console.log(chalk.dim('  ────────────────────────────'));
+  console.log(
+    `  ${getStatusIcon(hasAnthropic, hasAnthropicEnv)} Anthropic  ${getStatusText(hasAnthropic, hasAnthropicEnv)}`
+  );
+  console.log(
+    `  ${getStatusIcon(hasOpenAI, hasOpenAIEnv)} OpenAI     ${getStatusText(hasOpenAI, hasOpenAIEnv)}`
+  );
+  console.log();
+};
+
+const handleApiKeySetup = async (
+  provider: 'Anthropic' | 'OpenAI',
+  setKey: (key: string) => Promise<void>,
+  deleteKey: () => Promise<boolean>,
+  hasKey: () => Promise<boolean>
+): Promise<void> => {
+  const exists = await hasKey();
+
+  const action = await select({
+    message: `${provider} API Key`,
+    choices: [
+      { name: exists ? 'Update key' : 'Set key', value: 'set' },
+      ...(exists ? [{ name: 'Remove key', value: 'delete' }] : []),
+      { name: 'Back', value: 'back' },
+    ],
+  });
+
+  if (action === 'back') return;
+
+  if (action === 'delete') {
+    const confirmed = await confirm({
+      message: `Remove ${provider} API key?`,
+      default: false,
+    });
+    if (confirmed) {
+      const spinner = ora(`Removing ${provider} API key...`).start();
+      const deleted = await deleteKey();
+      if (deleted) {
+        spinner.succeed(`${provider} API key removed`);
+      } else {
+        spinner.info('No key was stored');
+      }
+    }
+    return;
+  }
+
+  const apiKey = await password({
+    message: `Enter your ${provider} API key:`,
+    mask: '•',
+    validate: (value) => {
+      if (!value.trim()) return 'API key cannot be empty';
+      return true;
+    },
+  });
+
+  const spinner = ora(`Storing ${provider} API key...`).start();
+  await setKey(apiKey);
+  spinner.succeed(`${provider} API key stored in keychain`);
+};
+
 // Config command
 program
   .command('config')
   .description('Configure lgtm settings')
-  .option('--api-key <key>', 'Set the Anthropic API key (stored securely in system keychain)')
-  .option('--clear-api-key', 'Remove the stored API key')
-  .option('--status', 'Show configuration status')
-  .action(async (options) => {
-    if (options.apiKey) {
-      const spinner = ora('Storing API key securely...').start();
+  .action(async () => {
+    console.log();
+    console.log(chalk.bold.magenta('  ⚙  lgtm config'));
+    await printStatus();
+
+    let running = true;
+    while (running) {
       try {
-        await setAnthropicApiKey(options.apiKey);
-        spinner.succeed('API key stored securely in system keychain');
-      } catch (error) {
-        spinner.fail('Failed to store API key');
-        if (error instanceof Error) {
-          console.error(chalk.red(error.message));
+        const choice = await select({
+          message: 'What would you like to configure?',
+          choices: [
+            { name: 'Anthropic API Key', value: 'anthropic' },
+            { name: 'OpenAI API Key', value: 'openai' },
+            { name: 'Show status', value: 'status' },
+            { name: 'Exit', value: 'exit' },
+          ],
+        });
+
+        switch (choice) {
+          case 'anthropic':
+            await handleApiKeySetup(
+              'Anthropic',
+              setAnthropicApiKey,
+              deleteAnthropicApiKey,
+              hasAnthropicApiKey
+            );
+            break;
+          case 'openai':
+            await handleApiKeySetup(
+              'OpenAI',
+              setOpenAIApiKey,
+              deleteOpenAIApiKey,
+              hasOpenAIApiKey
+            );
+            break;
+          case 'status':
+            await printStatus();
+            break;
+          case 'exit':
+            running = false;
+            break;
         }
-        process.exit(1);
-      }
-    } else if (options.clearApiKey) {
-      const spinner = ora('Removing API key...').start();
-      try {
-        const deleted = await deleteAnthropicApiKey();
-        if (deleted) {
-          spinner.succeed('API key removed from system keychain');
+      } catch (error) {
+        // User pressed Ctrl+C
+        if (error instanceof Error && error.message.includes('User force closed')) {
+          running = false;
         } else {
-          spinner.info('No API key was stored');
+          throw error;
         }
-      } catch (error) {
-        spinner.fail('Failed to remove API key');
-        if (error instanceof Error) {
-          console.error(chalk.red(error.message));
-        }
-        process.exit(1);
       }
-    } else if (options.status) {
-      const hasKey = await hasAnthropicApiKey();
-      const envKey = !!process.env.ANTHROPIC_API_KEY;
-
-      console.log(chalk.bold('\nConfiguration Status:\n'));
-
-      if (envKey) {
-        console.log(chalk.green('  ✓ ANTHROPIC_API_KEY environment variable is set'));
-      } else if (hasKey) {
-        console.log(chalk.green('  ✓ API key stored in system keychain'));
-      } else {
-        console.log(chalk.yellow('  ✗ No API key configured'));
-        console.log(chalk.gray('\n  Run `lgtm config --api-key <key>` to configure'));
-      }
-      console.log();
-    } else {
-      console.log('Usage: lgtm config [options]');
-      console.log('\nOptions:');
-      console.log('  --api-key <key>   Set the Anthropic API key');
-      console.log('  --clear-api-key   Remove the stored API key');
-      console.log('  --status          Show configuration status');
     }
+
+    console.log(chalk.dim('\n  Goodbye!\n'));
   });
 
 // Main review command
