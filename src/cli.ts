@@ -11,6 +11,7 @@ import { renderHTML } from './output/html.js';
 import { renderJSON } from './output/json.js';
 import { writeFileSync } from 'fs';
 import { spawn } from 'child_process';
+import { setAnthropicApiKey, deleteAnthropicApiKey, hasAnthropicApiKey } from './secrets.js';
 
 const program = new Command();
 
@@ -19,6 +20,67 @@ program
   .description('Structured PR review companion - because "lgtm" should mean something')
   .version('0.1.0');
 
+// Config command
+program
+  .command('config')
+  .description('Configure lgtm settings')
+  .option('--api-key <key>', 'Set the Anthropic API key (stored securely in system keychain)')
+  .option('--clear-api-key', 'Remove the stored API key')
+  .option('--status', 'Show configuration status')
+  .action(async (options) => {
+    if (options.apiKey) {
+      const spinner = ora('Storing API key securely...').start();
+      try {
+        await setAnthropicApiKey(options.apiKey);
+        spinner.succeed('API key stored securely in system keychain');
+      } catch (error) {
+        spinner.fail('Failed to store API key');
+        if (error instanceof Error) {
+          console.error(chalk.red(error.message));
+        }
+        process.exit(1);
+      }
+    } else if (options.clearApiKey) {
+      const spinner = ora('Removing API key...').start();
+      try {
+        const deleted = await deleteAnthropicApiKey();
+        if (deleted) {
+          spinner.succeed('API key removed from system keychain');
+        } else {
+          spinner.info('No API key was stored');
+        }
+      } catch (error) {
+        spinner.fail('Failed to remove API key');
+        if (error instanceof Error) {
+          console.error(chalk.red(error.message));
+        }
+        process.exit(1);
+      }
+    } else if (options.status) {
+      const hasKey = await hasAnthropicApiKey();
+      const envKey = !!process.env.ANTHROPIC_API_KEY;
+
+      console.log(chalk.bold('\nConfiguration Status:\n'));
+
+      if (envKey) {
+        console.log(chalk.green('  ✓ ANTHROPIC_API_KEY environment variable is set'));
+      } else if (hasKey) {
+        console.log(chalk.green('  ✓ API key stored in system keychain'));
+      } else {
+        console.log(chalk.yellow('  ✗ No API key configured'));
+        console.log(chalk.gray('\n  Run `lgtm config --api-key <key>` to configure'));
+      }
+      console.log();
+    } else {
+      console.log('Usage: lgtm config [options]');
+      console.log('\nOptions:');
+      console.log('  --api-key <key>   Set the Anthropic API key');
+      console.log('  --clear-api-key   Remove the stored API key');
+      console.log('  --status          Show configuration status');
+    }
+  });
+
+// Main review command
 program
   .argument('[pr-url]', 'GitHub PR URL (e.g., https://github.com/org/repo/pull/123)')
   .option('-b, --base <branch>', 'Base branch for local comparison', 'main')

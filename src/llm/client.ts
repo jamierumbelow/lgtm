@@ -1,8 +1,9 @@
 import { generateObject } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { getAnthropicApiKey } from '../secrets.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROMPTS_DIR = join(__dirname, '../../prompts');
@@ -27,6 +28,15 @@ export async function generateStructured<T>(
   options: LLMOptions = {}
 ): Promise<T> {
   const { model = DEFAULT_MODEL, temperature = 0.2, maxTokens = 4096 } = options;
+
+  const apiKey = await getAnthropicApiKey();
+  if (!apiKey) {
+    throw new Error(
+      'Anthropic API key not configured. Run `lgtm config --api-key <key>` or set ANTHROPIC_API_KEY environment variable.'
+    );
+  }
+
+  const anthropic = createAnthropic({ apiKey });
 
   const result = await generateObject({
     model: anthropic(model),
