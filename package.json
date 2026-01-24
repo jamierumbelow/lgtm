@@ -1,0 +1,36 @@
+{
+  "name": "lgtm",
+  "version": "0.1.0",
+  "description": "Structured PR review companion - because 'lgtm' should mean something",
+  "type": "module",
+  "bin": {
+    "lgtm": "./dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "lint": "eslint src/",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.1",
+    "tree-sitter": "^0.21.1",
+    "tree-sitter-typescript": "^0.21.2",
+    "tree-sitter-javascript": "^0.21.4",
+    "tree-sitter-python": "^0.21.0",
+    "handlebars": "^4.7.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0",
+    "vitest": "^1.6.0",
+    "eslint": "^9.5.0",
+    "@typescript-eslint/eslint-plugin": "^7.13.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
