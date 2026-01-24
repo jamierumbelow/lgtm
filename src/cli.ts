@@ -12,6 +12,7 @@ import { renderJSON } from './output/json.js';
 import { writeFileSync } from 'fs';
 import { spawn } from 'child_process';
 import { setAnthropicApiKey, deleteAnthropicApiKey, hasAnthropicApiKey } from './secrets.js';
+import { getCached, setCache, clearCache, getCacheInfo } from './cache.js';
 
 const program = new Command();
 
@@ -92,6 +93,7 @@ program
   .option('--claude-dir <path>', 'Path to Claude Code history directory', '~/.claude')
   .option('--cursor-dir <path>', 'Path to Cursor history directory')
   .option('--no-llm', 'Skip LLM-powered analysis (descriptions, questions)')
+  .option('--fresh', 'Bypass cache and fetch fresh data')
   .action(async (prUrl, options) => {
     const spinner = ora();
 
@@ -102,25 +104,52 @@ program
         process.exit(1);
       }
 
-      // Fetch PR data
-      spinner.start('Fetching PR data...');
-      const prData = await getPRData(prUrl, options);
-      spinner.succeed(`Fetched PR: ${prData.title || 'Local diff'}`);
+      let prData: Awaited<ReturnType<typeof getPRData>> | undefined;
+      let analysis: Awaited<ReturnType<typeof analyzeChanges>> | undefined;
 
-      // Analyze changes
-      spinner.start('Analyzing changes...');
-      const analysis = await analyzeChanges(prData, { useLLM: options.llm !== false });
-      spinner.succeed(`Analyzed ${analysis.changeGroups.length} change groups across ${analysis.filesChanged} files`);
+      // Check cache for PR URLs (not local branches)
+      if (prUrl && !options.fresh) {
+        const cached = getCached(prUrl);
+        if (cached) {
+          const cacheInfo = getCacheInfo(prUrl);
+          spinner.succeed(`Using cached analysis from ${cacheInfo.timestamp?.toLocaleString() || 'cache'}`);
+          prData = cached.prData;
+          analysis = cached.analysis;
+        }
+      }
 
-      // Find LLM traces if requested
-      if (options.findTraces) {
-        spinner.start('Searching for LLM session traces...');
-        const traces = await findTraces(prData.files, {
-          claudeDir: options.claudeDir,
-          cursorDir: options.cursorDir,
-        });
-        analysis.traces = traces;
-        spinner.succeed(`Found ${traces.length} potential session traces`);
+      // Clear cache if --fresh
+      if (prUrl && options.fresh) {
+        clearCache(prUrl);
+      }
+
+      // Fetch and analyze if not cached
+      if (!analysis) {
+        // Fetch PR data
+        spinner.start('Fetching PR data...');
+        prData = await getPRData(prUrl, options);
+        spinner.succeed(`Fetched PR: ${prData.title || 'Local diff'}`);
+
+        // Analyze changes
+        spinner.start('Analyzing changes...');
+        analysis = await analyzeChanges(prData, { useLLM: options.llm !== false });
+        spinner.succeed(`Analyzed ${analysis.changeGroups.length} change groups across ${analysis.filesChanged} files`);
+
+        // Find LLM traces if requested
+        if (options.findTraces) {
+          spinner.start('Searching for LLM session traces...');
+          const traces = await findTraces(prData.files, {
+            claudeDir: options.claudeDir,
+            cursorDir: options.cursorDir,
+          });
+          analysis.traces = traces;
+          spinner.succeed(`Found ${traces.length} potential session traces`);
+        }
+
+        // Cache the results for PR URLs
+        if (prUrl) {
+          setCache(prUrl, prData, analysis);
+        }
       }
 
       // Render output
