@@ -385,6 +385,45 @@ export function renderHTML(analysis: Analysis): string {
       gap: 8px;
     }
 
+    .diff-file-name {
+      flex: 1;
+    }
+
+    .diff-mode-toggle {
+      display: flex;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .diff-mode-btn {
+      padding: 4px 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      transition: all 0.15s;
+    }
+
+    .diff-mode-btn:hover {
+      color: var(--text);
+      background: var(--bg-tertiary);
+    }
+
+    .diff-mode-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .diff-mode-btn + .diff-mode-btn {
+      border-left: 1px solid var(--border);
+    }
+
     .diff-file-header .status {
       font-size: 11px;
       padding: 2px 6px;
@@ -407,6 +446,61 @@ export function renderHTML(analysis: Analysis): string {
       border-top: none;
       border-radius: 0 0 8px 8px;
       overflow-x: auto;
+    }
+
+    .diff-content-side-by-side .diff-row {
+      display: grid;
+      grid-template-columns: 50px 1fr 50px 1fr;
+      min-height: 22px;
+    }
+
+    .diff-content-side-by-side .diff-row .line-number {
+      width: auto;
+      padding: 0 8px;
+      text-align: right;
+      color: var(--text-muted);
+      user-select: none;
+      border-right: 1px solid var(--border);
+    }
+
+    .diff-content-side-by-side .diff-row .line-number.new {
+      border-left: 1px solid var(--border);
+    }
+
+    .diff-content-side-by-side .diff-row .line-content {
+      padding: 0 16px;
+      white-space: pre;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .diff-content-side-by-side .diff-row .line-content.new {
+      border-left: 1px solid var(--border);
+    }
+
+    .diff-content-side-by-side .diff-row.addition .line-content.new {
+      background: var(--green-bg);
+    }
+
+    .diff-content-side-by-side .diff-row.deletion .line-content.old {
+      background: var(--red-bg);
+    }
+
+    .diff-content-side-by-side .diff-hunk-header {
+      padding: 4px 16px;
+      background: rgba(88, 166, 255, 0.1);
+      color: var(--text-muted);
+      font-style: italic;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    body[data-diff-mode="side-by-side"] .diff-content-integrated {
+      display: none;
+    }
+
+    body[data-diff-mode="integrated"] .diff-content-side-by-side {
+      display: none;
     }
 
     .diff-line {
@@ -838,6 +932,7 @@ export function renderHTML(analysis: Analysis): string {
     let currentMode = 'review';
     let currentSlide = 0;
     const totalSlides = ${totalSlides};
+    const diffModeKey = 'lgtm-diff-mode';
 
     function switchMode(mode) {
       currentMode = mode;
@@ -849,6 +944,16 @@ export function renderHTML(analysis: Analysis): string {
       if (mode === 'review') {
         showSlide(currentSlide);
       }
+    }
+
+    function setDiffMode(mode) {
+      const resolvedMode = mode === 'integrated' ? 'integrated' : 'side-by-side';
+      document.body.dataset.diffMode = resolvedMode;
+      localStorage.setItem(diffModeKey, resolvedMode);
+
+      document.querySelectorAll('.diff-mode-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.mode === resolvedMode);
+      });
     }
 
     function showSlide(index) {
@@ -897,6 +1002,7 @@ export function renderHTML(analysis: Analysis): string {
     }
 
     // Initialize - start in review mode on summary slide
+    setDiffMode(localStorage.getItem(diffModeKey) || 'side-by-side');
     showSlide(0);
   </script>
 
@@ -1389,61 +1495,144 @@ function renderDiff(group: ChangeGroup): string {
       <div class="diff-file">
         <div class="diff-file-header">
           <span class="status ${status}">${status}</span>
-          <span>${escapeHtml(file)}</span>
+          <span class="diff-file-name">${escapeHtml(file)}</span>
+          <div class="diff-mode-toggle">
+            <button class="diff-mode-btn" data-mode="side-by-side" onclick="setDiffMode('side-by-side')">
+              Side-by-side
+            </button>
+            <button class="diff-mode-btn" data-mode="integrated" onclick="setDiffMode('integrated')">
+              Integrated
+            </button>
+          </div>
         </div>
-        <div class="diff-content">
+        <div class="diff-content diff-content-side-by-side">
+          ${renderSideBySideDiff(hunks)}
+        </div>
+        <div class="diff-content diff-content-integrated">
+          ${renderIntegratedDiff(hunks)}
+        </div>
+      </div>
     `;
+  }
 
-    for (const { hunk } of hunks) {
-      html += `
+  return html || '<div class="empty-state">No diff content available</div>';
+}
+
+function renderIntegratedDiff(
+  hunks: Array<{ file: string; hunk: any }>
+): string {
+  let html = "";
+
+  for (const { hunk } of hunks) {
+    html += `
         <div class="diff-line hunk-header">
           <span class="line-number"></span>
           <span class="line-content">@@ -${hunk.oldStart},${hunk.oldLines} +${
-        hunk.newStart
-      },${hunk.newLines} @@ ${escapeHtml(hunk.header)}</span>
+      hunk.newStart
+    },${hunk.newLines} @@ ${escapeHtml(hunk.header)}</span>
         </div>
       `;
 
-      const lines = hunk.content.split("\n");
-      let oldLine = hunk.oldStart;
-      let newLine = hunk.newStart;
+    const lines = hunk.content.split("\n");
+    let oldLine = hunk.oldStart;
+    let newLine = hunk.newStart;
 
-      for (const line of lines) {
-        if (!line) continue;
+    for (const line of lines) {
+      if (!line) continue;
 
-        const firstChar = line[0];
-        const content = line.slice(1);
-        let lineClass = "";
-        let lineNum = "";
-        let marker = "";
+      const firstChar = line[0];
+      const content = line.slice(1);
+      let lineClass = "";
+      let lineNum = "";
+      let marker = "";
 
-        if (firstChar === "+") {
-          lineClass = "addition";
-          lineNum = String(newLine++);
-          marker = '<span class="addition-marker">+</span>';
-        } else if (firstChar === "-") {
-          lineClass = "deletion";
-          lineNum = String(oldLine++);
-          marker = '<span class="deletion-marker">-</span>';
-        } else {
-          lineNum = String(oldLine++);
-          newLine++;
-          marker = " ";
-        }
+      if (firstChar === "+") {
+        lineClass = "addition";
+        lineNum = String(newLine++);
+        marker = '<span class="addition-marker">+</span>';
+      } else if (firstChar === "-") {
+        lineClass = "deletion";
+        lineNum = String(oldLine++);
+        marker = '<span class="deletion-marker">-</span>';
+      } else {
+        lineNum = String(oldLine++);
+        newLine++;
+        marker = " ";
+      }
 
-        html += `
+      html += `
           <div class="diff-line ${lineClass}">
             <span class="line-number">${lineNum}</span>
             <span class="line-content">${marker}${escapeHtml(content)}</span>
           </div>
         `;
-      }
     }
+  }
 
+  return html || '<div class="empty-state">No diff content available</div>';
+}
+
+function renderSideBySideDiff(
+  hunks: Array<{ file: string; hunk: any }>
+): string {
+  let html = "";
+
+  for (const { hunk } of hunks) {
     html += `
-        </div>
-      </div>
-    `;
+        <div class="diff-hunk-header">@@ -${hunk.oldStart},${hunk.oldLines} +${
+      hunk.newStart
+    },${hunk.newLines} @@ ${escapeHtml(hunk.header)}</div>
+      `;
+
+    const lines = hunk.content.split("\n");
+    let oldLine = hunk.oldStart;
+    let newLine = hunk.newStart;
+
+    for (const line of lines) {
+      if (!line) continue;
+
+      const firstChar = line[0];
+      const content = line.slice(1);
+      let lineClass = "";
+      let oldLineNum = "";
+      let newLineNum = "";
+      let oldMarker = "";
+      let newMarker = "";
+      let oldContent = "";
+      let newContent = "";
+
+      if (firstChar === "+") {
+        lineClass = "addition";
+        newLineNum = String(newLine++);
+        newMarker = '<span class="addition-marker">+</span>';
+        newContent = content;
+      } else if (firstChar === "-") {
+        lineClass = "deletion";
+        oldLineNum = String(oldLine++);
+        oldMarker = '<span class="deletion-marker">-</span>';
+        oldContent = content;
+      } else {
+        oldLineNum = String(oldLine++);
+        newLineNum = String(newLine++);
+        oldMarker = " ";
+        newMarker = " ";
+        oldContent = content;
+        newContent = content;
+      }
+
+      html += `
+          <div class="diff-row ${lineClass}">
+            <span class="line-number old">${oldLineNum}</span>
+            <span class="line-content old">${oldMarker}${escapeHtml(
+        oldContent
+      )}</span>
+            <span class="line-number new">${newLineNum}</span>
+            <span class="line-content new">${newMarker}${escapeHtml(
+        newContent
+      )}</span>
+          </div>
+        `;
+    }
   }
 
   return html || '<div class="empty-state">No diff content available</div>';
