@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { getPRData } from './github/pr.js';
-import { analyzeChanges } from './analysis/analyzer.js';
+import { analyzeChanges, ensureAnalysis } from './analysis/analyzer.js';
 import { findTraces } from './analysis/trace-finder.js';
 import { renderMarkdown } from './output/markdown.js';
 import { renderHTML } from './output/html.js';
@@ -209,7 +209,29 @@ program
           const cacheInfo = getCacheInfo(prUrl);
           spinner.succeed(`Using cached analysis from ${cacheInfo.timestamp?.toLocaleString() || 'cache'}`);
           prData = cached.prData;
-          analysis = cached.analysis;
+          const updateResult = await ensureAnalysis(
+            prData,
+            { useLLM: options.llm !== false, includeTraces: options.findTraces },
+            cached.analysis
+          );
+          analysis = updateResult.analysis;
+          if (updateResult.updated) {
+            spinner.start('Updating cached analysis...');
+            spinner.succeed('Updated cached analysis');
+          }
+          if (prUrl && updateResult.updated) {
+            setCache(prUrl, prData, analysis);
+          }
+          if (options.findTraces && updateResult.missing.needsTraces) {
+            spinner.start('Searching for LLM session traces...');
+            const traces = await findTraces(prData.files, {
+              claudeDir: options.claudeDir,
+              cursorDir: options.cursorDir,
+            });
+            analysis.traces = traces;
+            spinner.succeed(`Found ${traces.length} potential session traces`);
+            setCache(prUrl, prData, analysis);
+          }
         }
       }
 
