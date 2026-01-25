@@ -18,6 +18,9 @@ import {
   setOpenAIApiKey,
   deleteOpenAIApiKey,
   hasOpenAIApiKey,
+  setGoogleApiKey,
+  deleteGoogleApiKey,
+  hasGoogleApiKey,
 } from "./secrets.js";
 import { select, password, confirm } from "@inquirer/prompts";
 import { getCached, setCache, clearCache, getCacheInfo } from "./cache.js";
@@ -51,12 +54,14 @@ const getStatusText = (hasKey: boolean, hasEnvKey: boolean): string => {
 };
 
 const printStatus = async (): Promise<void> => {
-  const [hasAnthropic, hasOpenAI] = await Promise.all([
+  const [hasAnthropic, hasOpenAI, hasGoogle] = await Promise.all([
     hasAnthropicApiKey(),
     hasOpenAIApiKey(),
+    hasGoogleApiKey(),
   ]);
   const hasAnthropicEnv = !!process.env.ANTHROPIC_API_KEY;
   const hasOpenAIEnv = !!process.env.OPENAI_API_KEY;
+  const hasGoogleEnv = !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
   console.log();
   console.log(chalk.bold("  API Keys"));
@@ -73,11 +78,17 @@ const printStatus = async (): Promise<void> => {
       hasOpenAIEnv
     )}`
   );
+  console.log(
+    `  ${getStatusIcon(hasGoogle, hasGoogleEnv)} Gemini     ${getStatusText(
+      hasGoogle,
+      hasGoogleEnv
+    )}`
+  );
   console.log();
 };
 
 const handleApiKeySetup = async (
-  provider: "Anthropic" | "OpenAI",
+  provider: "Anthropic" | "OpenAI" | "Gemini",
   setKey: (key: string) => Promise<void>,
   deleteKey: () => Promise<boolean>,
   hasKey: () => Promise<boolean>
@@ -143,6 +154,7 @@ program
           choices: [
             { name: "Anthropic API Key", value: "anthropic" },
             { name: "OpenAI API Key", value: "openai" },
+            { name: "Gemini API Key", value: "gemini" },
             { name: "Show status", value: "status" },
             { name: "Exit", value: "exit" },
           ],
@@ -163,6 +175,14 @@ program
               setOpenAIApiKey,
               deleteOpenAIApiKey,
               hasOpenAIApiKey
+            );
+            break;
+          case "gemini":
+            await handleApiKeySetup(
+              "Gemini",
+              setGoogleApiKey,
+              deleteGoogleApiKey,
+              hasGoogleApiKey
             );
             break;
           case "status":
@@ -248,6 +268,7 @@ program
             {
               useLLM: options.llm !== false,
               includeTraces: options.findTraces,
+              verbose: options.verbose,
             },
             cached.analysis
           );
@@ -288,6 +309,7 @@ program
         spinner.start("Analyzing changes...");
         analysis = await analyzeChanges(prData, {
           useLLM: options.llm !== false,
+          verbose: options.verbose,
         });
         spinner.succeed(
           `Analyzed ${analysis.changeGroups.length} change groups across ${analysis.filesChanged} files`

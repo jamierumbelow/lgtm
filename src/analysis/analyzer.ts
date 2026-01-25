@@ -3,6 +3,7 @@ import { aggregateContributors, FileContributor } from "../github/blame.js";
 import { chunkDiff, ChangeGroup } from "./chunker.js";
 import { TraceMatch } from "./trace-finder.js";
 import { answerChangesetQuestionsWithLLM } from "../llm/changeset-questions.js";
+import { ModelChoice, DEFAULT_MODEL } from "../config.js";
 
 export type ReviewQuestionCategory = "overview" | "changeset";
 
@@ -10,6 +11,7 @@ export interface ReviewQuestion {
   id: string;
   question: string;
   category: ReviewQuestionCategory;
+  model?: ModelChoice;
   answer?: string;
   context?: string;
 }
@@ -51,6 +53,7 @@ export interface Analysis {
 interface AnalyzeOptions {
   useLLM: boolean;
   includeTraces?: boolean;
+  verbose?: boolean;
 }
 
 export interface AnalysisShape {
@@ -81,21 +84,25 @@ const OVERVIEW_QUESTIONS: Omit<ReviewQuestion, "answer" | "context">[] = [
   {
     id: "decomposition",
     category: "overview",
+    model: DEFAULT_MODEL,
     question: "Could this be split into smaller PRs?",
   },
   {
     id: "external-deps",
     category: "overview",
+    model: DEFAULT_MODEL,
     question: "Which external systems does this rely on?",
   },
   {
     id: "reviewers",
     category: "overview",
+    model: DEFAULT_MODEL,
     question: "Who has context to review this?",
   },
   {
     id: "rollback",
     category: "overview",
+    model: DEFAULT_MODEL,
     question: "How would we roll this back if it breaks?",
   },
 ];
@@ -104,66 +111,79 @@ const CHANGESET_QUESTIONS: Omit<ReviewQuestion, "answer" | "context">[] = [
   {
     id: "failure-modes",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "How can this fail? What's already handled?",
   },
   {
     id: "input-domain",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "What inputs does this change handle?",
   },
   {
     id: "output-range",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "What outputs can this produce?",
   },
   {
     id: "new-symbols",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "What new symbols are introduced?",
   },
   {
     id: "duplication",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "Does this add duplication?",
   },
   {
     id: "abstractions",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "Do the abstractions make sense?",
   },
   {
     id: "invariants",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "What invariants change or are added?",
   },
   {
     id: "error-handling",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "Are error paths fully handled?",
   },
   {
     id: "testing",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "What tests were added or updated? What's untested?",
   },
   {
     id: "performance",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "Any impact on latency, memory, or complexity?",
   },
   {
     id: "security-privacy",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "Does this touch sensitive data or trust boundaries?",
   },
   {
     id: "compatibility",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "Any behavior or API changes that could break callers?",
   },
   {
     id: "observability",
     category: "changeset",
+    model: DEFAULT_MODEL,
     question: "Do we need new or updated logs, metrics, or traces?",
   },
 ];
@@ -226,8 +246,14 @@ export async function analyzeChanges(
   const questionsResult = buildQuestions(prData, changeGroups, contributors);
 
   if (options.useLLM) {
+    if (options.verbose) {
+      console.log(
+        `[lgtm] answering changeset questions for ${changeGroupsWithQuestions.length} change groups`
+      );
+    }
     const answeredChangesets = await answerChangesetQuestionsWithLLM(
-      changeGroupsWithQuestions
+      changeGroupsWithQuestions,
+      { verbose: options.verbose }
     );
     changeGroupsWithQuestions = answeredChangesets.changeGroups;
   }
@@ -291,8 +317,14 @@ export async function ensureAnalysis(
   let changeGroupsWithQuestions = changesetQuestionsResult.changeGroups;
   let changesetAnswersUpdated = false;
   if (options.useLLM) {
+    if (options.verbose) {
+      console.log(
+        `[lgtm] answering changeset questions for ${changeGroupsWithQuestions.length} change groups`
+      );
+    }
     const answeredChangesets = await answerChangesetQuestionsWithLLM(
-      changeGroupsWithQuestions
+      changeGroupsWithQuestions,
+      { verbose: options.verbose }
     );
     changeGroupsWithQuestions = answeredChangesets.changeGroups;
     changesetAnswersUpdated = answeredChangesets.updated;
@@ -415,6 +447,7 @@ function buildQuestions(
       id: question.id,
       question: question.question,
       category: question.category,
+      model: existing.model ?? question.model ?? DEFAULT_MODEL,
       context:
         existing.context && existing.context.length > 0
           ? existing.context
@@ -431,11 +464,15 @@ function buildQuestions(
         !standardIds.has(question.id) && question.category !== "changeset"
     )
     .map((question): ReviewQuestion => {
-      if (question.category) {
-        return question;
+      const normalized = {
+        ...question,
+        model: question.model ?? DEFAULT_MODEL,
+      };
+      if (normalized.category) {
+        return normalized;
       }
       updated = true;
-      return { ...question, category: "overview" };
+      return { ...normalized, category: "overview" };
     });
 
   const questions = [...standardQuestions, ...extraQuestions];
@@ -484,6 +521,7 @@ function buildChangesetQuestions(
         id: question.id,
         question: question.question,
         category: question.category,
+        model: existing.model ?? question.model ?? DEFAULT_MODEL,
       };
     });
 
