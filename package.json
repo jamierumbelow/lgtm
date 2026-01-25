@@ -21,6 +21,7 @@
     "handlebars": "^4.7.8",
     "marked": "^17.0.1",
     "ora": "^8.0.1",
+    "tokenlens": "*",
     "tree-sitter": "^0.21.1",
     "tree-sitter-javascript": "^0.21.4",
     "tree-sitter-python": "^0.21.0",

@@ -13,6 +13,7 @@
         "handlebars": "^4.7.8",
         "marked": "^17.0.1",
         "ora": "^8.0.1",
+        "tokenlens": "*",
         "tree-sitter": "^0.21.1",
         "tree-sitter-javascript": "^0.21.4",
         "tree-sitter-python": "^0.21.0",
@@ -214,6 +215,14 @@
     "@sinclair/typebox": ["@sinclair/typebox@0.27.8", "", {}, "sha512-+Fj43pSMwJs4KRrH/938Uf+uAELIgVBmQzg/q1YG10djyfA3TnrU8N8XzqCh/okZdszqBQTZf96idMfE5lnwTA=="],
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
+
+    "@tokenlens/core": ["@tokenlens/core@1.3.0", "", {}, "sha512-d8YNHNC+q10bVpi95fELJwJyPVf1HfvBEI18eFQxRSZTdByXrP+f/ZtlhSzkx0Jl0aEmYVeBA5tPeeYRioLViQ=="],
+
+    "@tokenlens/fetch": ["@tokenlens/fetch@1.3.0", "", { "dependencies": { "@tokenlens/core": "1.3.0" } }, "sha512-RONDRmETYly9xO8XMKblmrZjKSwCva4s5ebJwQNfNlChZoA5kplPoCgnWceHnn1J1iRjLVlrCNB43ichfmGBKQ=="],
+
+    "@tokenlens/helpers": ["@tokenlens/helpers@1.3.1", "", { "dependencies": { "@tokenlens/core": "1.3.0", "@tokenlens/fetch": "1.3.0" } }, "sha512-t6yL8N6ES8337E6eVSeH4hCKnPdWkZRFpupy9w5E66Q9IeqQ9IO7XQ6gh12JKjvWiRHuyyJ8MBP5I549Cr41EQ=="],
+
+    "@tokenlens/models": ["@tokenlens/models@1.3.0", "", { "dependencies": { "@tokenlens/core": "1.3.0" } }, "sha512-9mx7ZGeewW4ndXAiD7AT1bbCk4OpJeortbjHHyNkgap+pMPPn1chY6R5zqe1ggXIUzZ2l8VOAKfPqOvpcrisJw=="],
 
     "@types/bun": ["@types/bun@1.3.6", "", { "dependencies": { "bun-types": "1.3.6" } }, "sha512-uWCv6FO/8LcpREhenN1d1b6fcspAB+cefwD7uti8C8VffIv0Um08TKMn98FynpTiU38+y2dUO55T11NgDt8VAA=="],
 
@@ -570,6 +579,8 @@
     "tinyspy": ["tinyspy@2.2.1", "", {}, "sha512-KYad6Vy5VDWV4GH3fjpseMQ/XU2BhIYP7Vzd0LG44qRWm/Yt2WCOTicFdvmgo6gWaqooMQCawTtILVQJupKu7A=="],
 
     "to-regex-range": ["to-regex-range@5.0.1", "", { "dependencies": { "is-number": "^7.0.0" } }, "sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ=="],
+
+    "tokenlens": ["tokenlens@1.3.1", "", { "dependencies": { "@tokenlens/core": "1.3.0", "@tokenlens/fetch": "1.3.0", "@tokenlens/helpers": "1.3.1", "@tokenlens/models": "1.3.0" } }, "sha512-7oxmsS5PNCX3z+b+z07hL5vCzlgHKkCGrEQjQmWl5l+v5cUrtL7S1cuST4XThaL1XyjbTX8J5hfP0cjDJRkaLA=="],
 
     "tree-sitter": ["tree-sitter@0.21.1", "", { "dependencies": { "node-addon-api": "^8.0.0", "node-gyp-build": "^4.8.0" } }, "sha512-7dxoA6kYvtgWw80265MyqJlkRl4yawIjO7S5MigytjELkX43fV2WsAXzsNfO7sBpPPCF5Gp0+XzHk0DwLCq3xQ=="],
 

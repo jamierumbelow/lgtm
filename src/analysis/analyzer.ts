@@ -37,6 +37,11 @@ export interface Analysis {
 
   // LLM traces (if found)
   traces?: TraceMatch[];
+
+  // Generation metadata
+  generationTimeMs?: number;
+  tokenCount?: number;
+  costUsd?: number;
 }
 
 interface AnalyzeOptions {

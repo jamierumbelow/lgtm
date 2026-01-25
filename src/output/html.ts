@@ -1,6 +1,6 @@
-import { Analysis, ReviewQuestion } from '../analysis/analyzer.js';
-import { ChangeGroup } from '../analysis/chunker.js';
-import { marked } from 'marked';
+import { Analysis, ReviewQuestion } from "../analysis/analyzer.js";
+import { ChangeGroup } from "../analysis/chunker.js";
+import { marked } from "marked";
 
 export function renderHTML(analysis: Analysis): string {
   const overviewContent = renderOverview(analysis);
@@ -13,7 +13,7 @@ export function renderHTML(analysis: Analysis): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PR Review: ${escapeHtml(analysis.title || 'Untitled')}</title>
+  <title>PR Review: ${escapeHtml(analysis.title || "Untitled")}</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -764,6 +764,40 @@ export function renderHTML(analysis: Analysis): string {
       color: var(--text-muted);
       text-align: center;
     }
+
+    /* Generation Metadata Panel */
+    .generation-meta {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 11px;
+      color: var(--text-muted);
+      z-index: 100;
+      display: flex;
+      gap: 16px;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+
+    .generation-meta:hover {
+      opacity: 1;
+    }
+
+    .generation-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .generation-meta-value {
+      color: var(--text);
+      font-weight: 500;
+      font-family: 'SF Mono', Consolas, monospace;
+    }
   </style>
 </head>
 <body>
@@ -865,6 +899,8 @@ export function renderHTML(analysis: Analysis): string {
     // Initialize - start in review mode on summary slide
     showSlide(0);
   </script>
+
+  ${renderGenerationMeta(analysis)}
 </body>
 </html>`;
 }
@@ -876,38 +912,68 @@ function renderOverview(analysis: Analysis): string {
         <div class="nav-section">
           <div class="nav-title">Overview</div>
           <a href="#stats" class="nav-link">Statistics</a>
-          ${analysis.description ? '<a href="#description" class="nav-link">Description</a>' : ''}
+          ${
+            analysis.description
+              ? '<a href="#description" class="nav-link">Description</a>'
+              : ""
+          }
         </div>
 
         <div class="nav-section">
           <div class="nav-title">Changes (${analysis.changeGroups.length})</div>
-          ${analysis.changeGroups.map((g, i) => `
+          ${analysis.changeGroups
+            .map(
+              (g, i) => `
             <a href="#group-${i}" class="nav-link">${escapeHtml(g.title)}</a>
-          `).join('')}
+          `
+            )
+            .join("")}
         </div>
 
         <div class="nav-section">
           <div class="nav-title">Review Questions</div>
-          ${analysis.questions.map((q, i) => `
-            <a href="#question-${i}" class="nav-link">${escapeHtml(q.question.slice(0, 40))}...</a>
-          `).join('')}
+          ${analysis.questions
+            .map(
+              (q, i) => `
+            <a href="#question-${i}" class="nav-link">${escapeHtml(
+                q.question.slice(0, 40)
+              )}...</a>
+          `
+            )
+            .join("")}
         </div>
 
         <div class="nav-section">
           <div class="nav-title">Context</div>
           <a href="#reviewers" class="nav-link">Suggested Reviewers</a>
           <a href="#contributors" class="nav-link">Contributors</a>
-          ${analysis.traces?.length ? '<a href="#traces" class="nav-link">LLM Traces</a>' : ''}
+          ${
+            analysis.traces?.length
+              ? '<a href="#traces" class="nav-link">LLM Traces</a>'
+              : ""
+          }
         </div>
       </nav>
 
       <main class="main">
-        <h1>${escapeHtml(analysis.title || `${analysis.baseBranch} ← ${analysis.headBranch}`)}</h1>
+        <h1>${escapeHtml(
+          analysis.title || `${analysis.baseBranch} ← ${analysis.headBranch}`
+        )}</h1>
 
         <p style="color: var(--text-muted)">
-          ${analysis.author ? `By <strong>${escapeHtml(analysis.author)}</strong> · ` : ''}
+          ${
+            analysis.author
+              ? `By <strong>${escapeHtml(analysis.author)}</strong> · `
+              : ""
+          }
           Analyzed ${analysis.analyzedAt.toLocaleDateString()}
-          ${analysis.prUrl ? ` · <a href="${escapeHtml(analysis.prUrl)}" style="color: var(--accent)">View on GitHub</a>` : ''}
+          ${
+            analysis.prUrl
+              ? ` · <a href="${escapeHtml(
+                  analysis.prUrl
+                )}" style="color: var(--accent)">View on GitHub</a>`
+              : ""
+          }
         </p>
 
         <section id="stats">
@@ -931,68 +997,110 @@ function renderOverview(analysis: Analysis): string {
           </div>
         </section>
 
-        ${analysis.description ? `
+        ${
+          analysis.description
+            ? `
           <section id="description">
             <h2>Description</h2>
             <p>${escapeHtml(analysis.description)}</p>
           </section>
-        ` : ''}
+        `
+            : ""
+        }
 
         <section id="changes">
           <h2>Changes</h2>
           <p style="color: var(--text-muted); margin-bottom: 16px;">Click any change group to review it in detail.</p>
-          ${analysis.changeGroups.map((group, i) => `
+          ${analysis.changeGroups
+            .map(
+              (group, i) => `
             <div class="change-group" id="group-${i}" onclick="openReviewAt(${i})">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; border: none;">${escapeHtml(group.title)}</h3>
-                <span class="change-type ${group.changeType}">${group.changeType}</span>
+                <h3 style="margin: 0; border: none;">${escapeHtml(
+                  group.title
+                )}</h3>
+                <span class="change-type ${group.changeType}">${
+                group.changeType
+              }</span>
               </div>
 
-              ${group.description ? `<p>${escapeHtml(group.description)}</p>` : ''}
+              ${
+                group.description
+                  ? `<p>${escapeHtml(group.description)}</p>`
+                  : ""
+              }
 
               <div class="file-list">
-                ${group.files.map(f => `<div class="file-item">${escapeHtml(f)}</div>`).join('')}
+                ${group.files
+                  .map((f) => `<div class="file-item">${escapeHtml(f)}</div>`)
+                  .join("")}
               </div>
 
-              ${group.symbolsIntroduced?.length ? `
+              ${
+                group.symbolsIntroduced?.length
+                  ? `
                 <div style="margin-top: 12px;">
                   <strong style="font-size: 12px; color: var(--text-muted);">NEW SYMBOLS</strong>
                   <div class="symbols">
-                    ${group.symbolsIntroduced.map(s => `<span class="symbol">${escapeHtml(s)}</span>`).join('')}
+                    ${group.symbolsIntroduced
+                      .map(
+                        (s) => `<span class="symbol">${escapeHtml(s)}</span>`
+                      )
+                      .join("")}
                   </div>
                 </div>
-              ` : ''}
+              `
+                  : ""
+              }
             </div>
-          `).join('')}
+          `
+            )
+            .join("")}
         </section>
 
         <section id="questions">
           <h2>Review Questions</h2>
-          ${analysis.questions.map((q, i) => `
+          ${analysis.questions
+            .map(
+              (q, i) => `
             <div class="question-card" id="question-${i}">
               <div class="question-header">
                 <span>${escapeHtml(q.question)}</span>
               </div>
               <div class="question-content">
-                ${q.answer ? `<p>${escapeHtml(q.answer)}</p>` : ''}
-                ${q.context ? `<pre>${escapeHtml(q.context)}</pre>` : '<p style="color: var(--text-muted);">Analysis pending...</p>'}
+                ${q.answer ? `<p>${escapeHtml(q.answer)}</p>` : ""}
+                ${
+                  q.context
+                    ? `<pre>${escapeHtml(q.context)}</pre>`
+                    : '<p style="color: var(--text-muted);">Analysis pending...</p>'
+                }
               </div>
             </div>
-          `).join('')}
+          `
+            )
+            .join("")}
         </section>
 
         <section id="reviewers">
           <h2>Suggested Reviewers</h2>
-          ${analysis.suggestedReviewers.length ? `
+          ${
+            analysis.suggestedReviewers.length
+              ? `
             <ul>
-              ${analysis.suggestedReviewers.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
+              ${analysis.suggestedReviewers
+                .map((r) => `<li>${escapeHtml(r)}</li>`)
+                .join("")}
             </ul>
-          ` : '<p style="color: var(--text-muted);">No suggestions available</p>'}
+          `
+              : '<p style="color: var(--text-muted);">No suggestions available</p>'
+          }
         </section>
 
         <section id="contributors">
           <h2>File Contributors</h2>
-          ${analysis.contributors.length ? `
+          ${
+            analysis.contributors.length
+              ? `
             <table class="contributor-table">
               <thead>
                 <tr>
@@ -1003,45 +1111,70 @@ function renderOverview(analysis: Analysis): string {
                 </tr>
               </thead>
               <tbody>
-                ${analysis.contributors.slice(0, 10).map(c => `
+                ${analysis.contributors
+                  .slice(0, 10)
+                  .map(
+                    (c) => `
                   <tr>
                     <td>${escapeHtml(c.name)}</td>
                     <td>${c.linesAuthored}</td>
                     <td>${c.commits}</td>
                     <td>${c.lastCommitDate.toLocaleDateString()}</td>
                   </tr>
-                `).join('')}
+                `
+                  )
+                  .join("")}
               </tbody>
             </table>
-          ` : '<p style="color: var(--text-muted);">No contributor data available</p>'}
+          `
+              : '<p style="color: var(--text-muted);">No contributor data available</p>'
+          }
         </section>
 
-        ${analysis.traces?.length ? `
+        ${
+          analysis.traces?.length
+            ? `
           <section id="traces">
             <h2>LLM Session Traces</h2>
             <p style="color: var(--text-muted);">The following AI coding sessions may have contributed to this PR:</p>
-            ${analysis.traces.map(t => `
+            ${analysis.traces
+              .map(
+                (t) => `
               <div class="trace-card">
                 <div style="display: flex; justify-content: space-between;">
-                  <strong>${escapeHtml(t.source)} - ${escapeHtml(t.sessionId)}</strong>
+                  <strong>${escapeHtml(t.source)} - ${escapeHtml(
+                  t.sessionId
+                )}</strong>
                   <span style="color: var(--text-muted);">${t.timestamp.toLocaleDateString()}</span>
                 </div>
                 <div style="margin-top: 8px;">
-                  <span style="color: var(--text-muted);">Confidence:</span> ${(t.confidence * 100).toFixed(0)}%
+                  <span style="color: var(--text-muted);">Confidence:</span> ${(
+                    t.confidence * 100
+                  ).toFixed(0)}%
                   <div class="confidence-bar">
-                    <div class="confidence-fill" style="width: ${t.confidence * 100}%"></div>
+                    <div class="confidence-fill" style="width: ${
+                      t.confidence * 100
+                    }%"></div>
                   </div>
                 </div>
                 <div style="margin-top: 8px;">
-                  <span style="color: var(--text-muted);">Matched files:</span> ${t.matchedFiles.length}
+                  <span style="color: var(--text-muted);">Matched files:</span> ${
+                    t.matchedFiles.length
+                  }
                 </div>
                 <div style="margin-top: 8px;">
-                  <code style="font-size: 11px; word-break: break-all;">${escapeHtml(t.sessionPath)}</code>
+                  <code style="font-size: 11px; word-break: break-all;">${escapeHtml(
+                    t.sessionPath
+                  )}</code>
                 </div>
               </div>
-            `).join('')}
+            `
+              )
+              .join("")}
           </section>
-        ` : ''}
+        `
+            : ""
+        }
 
         <footer class="footer">
           Generated by <a href="https://github.com/your-username/lgtm">lgtm</a> — because "lgtm" should mean something
@@ -1052,27 +1185,46 @@ function renderOverview(analysis: Analysis): string {
 }
 
 function renderSummarySlide(analysis: Analysis): string {
-  const descriptionHtml = analysis.description ? marked.parse(analysis.description) : '';
+  const descriptionHtml = analysis.description
+    ? marked.parse(analysis.description)
+    : "";
 
   return `
     <div class="slide summary active" data-index="0">
       <div class="summary-slide">
         <div class="summary-content">
           <div class="summary-header">
-            <h1 class="summary-title">${escapeHtml(analysis.title || `${analysis.baseBranch} ← ${analysis.headBranch}`)}</h1>
+            <h1 class="summary-title">${escapeHtml(
+              analysis.title ||
+                `${analysis.baseBranch} ← ${analysis.headBranch}`
+            )}</h1>
             <div class="summary-author">
-              ${analysis.author ? `By <strong>${escapeHtml(analysis.author)}</strong>` : ''}
-              ${analysis.prUrl ? ` · <a href="${escapeHtml(analysis.prUrl)}" style="color: var(--accent)">View on GitHub</a>` : ''}
+              ${
+                analysis.author
+                  ? `By <strong>${escapeHtml(analysis.author)}</strong>`
+                  : ""
+              }
+              ${
+                analysis.prUrl
+                  ? ` · <a href="${escapeHtml(
+                      analysis.prUrl
+                    )}" style="color: var(--accent)">View on GitHub</a>`
+                  : ""
+              }
             </div>
           </div>
 
-          ${analysis.description ? `
+          ${
+            analysis.description
+              ? `
             <div class="summary-description">
               <div class="summary-description-content">
                 ${descriptionHtml}
               </div>
             </div>
-          ` : ''}
+          `
+              : ""
+          }
 
           <div class="summary-stats">
             <div class="summary-stat">
@@ -1088,7 +1240,9 @@ function renderSummarySlide(analysis: Analysis): string {
               <div class="summary-stat-label">Deletions</div>
             </div>
             <div class="summary-stat">
-              <div class="summary-stat-value">${analysis.changeGroups.length}</div>
+              <div class="summary-stat-value">${
+                analysis.changeGroups.length
+              }</div>
               <div class="summary-stat-label">Changesets</div>
             </div>
           </div>
@@ -1103,12 +1257,18 @@ function renderSummarySlide(analysis: Analysis): string {
 }
 
 function renderReviewSlides(analysis: Analysis): string {
-  return analysis.changeGroups.map((group, index) =>
-    renderSlide(group, index + 1, analysis) // +1 because summary is at index 0
-  ).join('\n');
+  return analysis.changeGroups
+    .map(
+      (group, index) => renderSlide(group, index + 1, analysis) // +1 because summary is at index 0
+    )
+    .join("\n");
 }
 
-function renderSlide(group: ChangeGroup, index: number, analysis: Analysis): string {
+function renderSlide(
+  group: ChangeGroup,
+  index: number,
+  analysis: Analysis
+): string {
   const diffContent = renderDiff(group);
   const relevantQuestions = getRelevantQuestions(group, analysis);
 
@@ -1120,57 +1280,93 @@ function renderSlide(group: ChangeGroup, index: number, analysis: Analysis): str
       <div class="meta-panel">
         <div class="meta-header">
           <div class="meta-title">${escapeHtml(group.title)}</div>
-          <span class="change-type ${group.changeType}">${group.changeType}</span>
+          <span class="change-type ${group.changeType}">${
+    group.changeType
+  }</span>
         </div>
 
-        ${group.description ? `
+        ${
+          group.description
+            ? `
           <div class="meta-section">
             <div class="meta-section-title">Description</div>
-            <p style="font-size: 14px; line-height: 1.6; color: var(--text-muted);">${escapeHtml(group.description)}</p>
+            <p style="font-size: 14px; line-height: 1.6; color: var(--text-muted);">${escapeHtml(
+              group.description
+            )}</p>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
 
         <div class="meta-section">
           <div class="meta-section-title">Files (${group.files.length})</div>
           <ul class="meta-file-list">
-            ${group.files.map(f => `<li>${escapeHtml(f)}</li>`).join('')}
+            ${group.files.map((f) => `<li>${escapeHtml(f)}</li>`).join("")}
           </ul>
         </div>
 
-        ${group.symbolsIntroduced?.length ? `
+        ${
+          group.symbolsIntroduced?.length
+            ? `
           <div class="meta-section">
             <div class="meta-section-title">New Symbols</div>
             <div class="symbols">
-              ${group.symbolsIntroduced.map(s => `<span class="symbol">${escapeHtml(s)}</span>`).join('')}
+              ${group.symbolsIntroduced
+                .map((s) => `<span class="symbol">${escapeHtml(s)}</span>`)
+                .join("")}
             </div>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
 
-        ${group.symbolsModified?.length ? `
+        ${
+          group.symbolsModified?.length
+            ? `
           <div class="meta-section">
             <div class="meta-section-title">Modified Symbols</div>
             <div class="symbols">
-              ${group.symbolsModified.map(s => `<span class="symbol">${escapeHtml(s)}</span>`).join('')}
+              ${group.symbolsModified
+                .map((s) => `<span class="symbol">${escapeHtml(s)}</span>`)
+                .join("")}
             </div>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
 
-        ${relevantQuestions.length ? `
+        ${
+          relevantQuestions.length
+            ? `
           <div class="meta-section">
             <div class="meta-section-title">Review Questions</div>
-            ${relevantQuestions.map(q => `
+            ${relevantQuestions
+              .map(
+                (q) => `
               <div class="review-question-card">
                 <div class="review-question-text" onclick="toggleQuestion(this)">
                   <span>${escapeHtml(q.question)}</span>
                   <span class="chevron">▼</span>
                 </div>
                 <div class="review-question-answer">
-                  ${q.answer ? escapeHtml(q.answer) : q.context ? `<pre style="white-space: pre-wrap; font-size: 12px;">${escapeHtml(q.context)}</pre>` : '<em>Analysis pending...</em>'}
+                  ${
+                    q.answer
+                      ? escapeHtml(q.answer)
+                      : q.context
+                      ? `<pre style="white-space: pre-wrap; font-size: 12px;">${escapeHtml(
+                          q.context
+                        )}</pre>`
+                      : "<em>Analysis pending...</em>"
+                  }
                 </div>
               </div>
-            `).join('')}
+            `
+              )
+              .join("")}
           </div>
-        ` : ''}
+        `
+            : ""
+        }
       </div>
     </div>
   `;
@@ -1184,7 +1380,7 @@ function renderDiff(group: ChangeGroup): string {
     fileGroups.get(file)!.push({ file, hunk });
   }
 
-  let html = '';
+  let html = "";
 
   for (const [file, hunks] of fileGroups) {
     const status = getFileStatus(file, hunks);
@@ -1202,11 +1398,13 @@ function renderDiff(group: ChangeGroup): string {
       html += `
         <div class="diff-line hunk-header">
           <span class="line-number"></span>
-          <span class="line-content">@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@ ${escapeHtml(hunk.header)}</span>
+          <span class="line-content">@@ -${hunk.oldStart},${hunk.oldLines} +${
+        hunk.newStart
+      },${hunk.newLines} @@ ${escapeHtml(hunk.header)}</span>
         </div>
       `;
 
-      const lines = hunk.content.split('\n');
+      const lines = hunk.content.split("\n");
       let oldLine = hunk.oldStart;
       let newLine = hunk.newStart;
 
@@ -1215,22 +1413,22 @@ function renderDiff(group: ChangeGroup): string {
 
         const firstChar = line[0];
         const content = line.slice(1);
-        let lineClass = '';
-        let lineNum = '';
-        let marker = '';
+        let lineClass = "";
+        let lineNum = "";
+        let marker = "";
 
-        if (firstChar === '+') {
-          lineClass = 'addition';
+        if (firstChar === "+") {
+          lineClass = "addition";
           lineNum = String(newLine++);
           marker = '<span class="addition-marker">+</span>';
-        } else if (firstChar === '-') {
-          lineClass = 'deletion';
+        } else if (firstChar === "-") {
+          lineClass = "deletion";
           lineNum = String(oldLine++);
           marker = '<span class="deletion-marker">-</span>';
         } else {
           lineNum = String(oldLine++);
           newLine++;
-          marker = ' ';
+          marker = " ";
         }
 
         html += `
@@ -1251,35 +1449,111 @@ function renderDiff(group: ChangeGroup): string {
   return html || '<div class="empty-state">No diff content available</div>';
 }
 
-function getFileStatus(file: string, hunks: Array<{ file: string; hunk: any }>): string {
-  const content = hunks.map(h => h.hunk.content).join('\n');
+function getFileStatus(
+  file: string,
+  hunks: Array<{ file: string; hunk: any }>
+): string {
+  const content = hunks.map((h) => h.hunk.content).join("\n");
   const additions = (content.match(/^\+/gm) || []).length;
   const deletions = (content.match(/^-/gm) || []).length;
 
-  if (deletions === 0) return 'added';
-  if (additions === 0) return 'removed';
-  return 'modified';
+  if (deletions === 0) return "added";
+  if (additions === 0) return "removed";
+  return "modified";
 }
 
-function getRelevantQuestions(group: ChangeGroup, analysis: Analysis): ReviewQuestion[] {
-  const relevant = ['failure-modes', 'input-domain', 'output-range', 'error-handling'];
+function getRelevantQuestions(
+  group: ChangeGroup,
+  analysis: Analysis
+): ReviewQuestion[] {
+  const relevant = [
+    "failure-modes",
+    "input-domain",
+    "output-range",
+    "error-handling",
+  ];
 
-  if (group.changeType === 'test') {
-    return analysis.questions.filter(q => ['input-domain', 'output-range'].includes(q.id));
+  if (group.changeType === "test") {
+    return analysis.questions.filter((q) =>
+      ["input-domain", "output-range"].includes(q.id)
+    );
   }
 
   if (group.symbolsIntroduced?.length) {
-    relevant.push('new-symbols', 'abstractions');
+    relevant.push("new-symbols", "abstractions");
   }
 
-  return analysis.questions.filter(q => relevant.includes(q.id)).slice(0, 4);
+  return analysis.questions.filter((q) => relevant.includes(q.id)).slice(0, 4);
+}
+
+function renderGenerationMeta(analysis: Analysis): string {
+  const hasMetadata =
+    analysis.generationTimeMs || analysis.tokenCount || analysis.costUsd;
+  if (!hasMetadata) return "";
+
+  const formatTime = (ms: number): string => {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  };
+
+  const formatTokens = (count: number): string => {
+    if (count < 1000) return String(count);
+    return `${(count / 1000).toFixed(1)}k`;
+  };
+
+  const formatCost = (usd: number): string => {
+    if (usd < 0.01) return `$${(usd * 100).toFixed(2)}¢`;
+    return `$${usd.toFixed(2)}`;
+  };
+
+  return `
+    <div class="generation-meta">
+      ${
+        analysis.generationTimeMs
+          ? `
+        <div class="generation-meta-item">
+          <span>⏱</span>
+          <span class="generation-meta-value">${formatTime(
+            analysis.generationTimeMs
+          )}</span>
+        </div>
+      `
+          : ""
+      }
+      ${
+        analysis.tokenCount
+          ? `
+        <div class="generation-meta-item">
+          <span>◈</span>
+          <span class="generation-meta-value">${formatTokens(
+            analysis.tokenCount
+          )}</span>
+          <span>tokens</span>
+        </div>
+      `
+          : ""
+      }
+      ${
+        analysis.costUsd
+          ? `
+        <div class="generation-meta-item">
+          <span>$</span>
+          <span class="generation-meta-value">${formatCost(
+            analysis.costUsd
+          )}</span>
+        </div>
+      `
+          : ""
+      }
+    </div>
+  `;
 }
 
 function escapeHtml(str: string): string {
   return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

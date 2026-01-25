@@ -21,6 +21,8 @@ import {
 } from './secrets.js';
 import { select, password, confirm } from '@inquirer/prompts';
 import { getCached, setCache, clearCache, getCacheInfo } from './cache.js';
+import { getLLMUsageRecords, getLLMUsageTotals, resetLLMUsage } from './llm/usage.js';
+import { calculateTokenlensCost } from './llm/tokenlens.js';
 
 const program = new Command();
 
@@ -183,9 +185,12 @@ program
   .option('--claude-dir <path>', 'Path to Claude Code history directory', '~/.claude')
   .option('--cursor-dir <path>', 'Path to Cursor history directory')
   .option('--no-llm', 'Skip LLM-powered analysis (descriptions, questions)')
+  .option('--verbose', 'Enable verbose logging')
   .option('--fresh', 'Bypass cache and fetch fresh data')
   .action(async (prUrl, options) => {
     const spinner = ora();
+    const generationStartedAt = Date.now();
+    resetLLMUsage();
 
     try {
       // Determine source: PR URL or local branches
@@ -241,6 +246,22 @@ program
           setCache(prUrl, prData, analysis);
         }
       }
+
+      const usageTotals = getLLMUsageTotals();
+      const usageRecords = getLLMUsageRecords();
+      const tokenlensCost = await calculateTokenlensCost(
+        usageRecords,
+        options.verbose ? console.warn : undefined
+      );
+      if (usageTotals.tokenCount > 0) {
+        analysis.tokenCount = usageTotals.tokenCount;
+      }
+      if (tokenlensCost !== undefined) {
+        analysis.costUsd = tokenlensCost;
+      } else if (usageTotals.costUsd > 0) {
+        analysis.costUsd = usageTotals.costUsd;
+      }
+      analysis.generationTimeMs = Date.now() - generationStartedAt;
 
       // Render output
       spinner.start('Generating review...');

@@ -4,6 +4,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getAnthropicApiKey } from '../secrets.js';
+import { recordLLMUsage } from './usage.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROMPTS_DIR = join(__dirname, '../../prompts');
@@ -46,6 +47,13 @@ export async function generateStructured<T>(
     temperature,
     maxTokens,
   });
+
+  recordLLMUsage(
+    result.usage,
+    model,
+    (result as { cost?: number; costUsd?: number }).cost ??
+      (result as { cost?: number; costUsd?: number }).costUsd
+  );
 
   return result.object;
 }
