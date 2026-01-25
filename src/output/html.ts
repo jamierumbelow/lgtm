@@ -410,6 +410,15 @@ export function renderHTML(analysis: Analysis): string {
       transition: all 0.15s;
     }
 
+    .diff-mode-btn svg {
+      display: block;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .diff-mode-btn:hover {
       color: var(--text);
       background: var(--bg-tertiary);
@@ -1498,10 +1507,17 @@ function renderDiff(group: ChangeGroup): string {
           <span class="diff-file-name">${escapeHtml(file)}</span>
           <div class="diff-mode-toggle">
             <button class="diff-mode-btn" data-mode="side-by-side" onclick="setDiffMode('side-by-side')">
-              Side-by-side
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                <rect x="3" y="4" width="7" height="16" rx="1"></rect>
+                <rect x="14" y="4" width="7" height="16" rx="1"></rect>
+              </svg>
             </button>
             <button class="diff-mode-btn" data-mode="integrated" onclick="setDiffMode('integrated')">
-              Integrated
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                <line x1="4" y1="6" x2="20" y2="6"></line>
+                <line x1="4" y1="12" x2="20" y2="12"></line>
+                <line x1="4" y1="18" x2="20" y2="18"></line>
+              </svg>
             </button>
           </div>
         </div>
