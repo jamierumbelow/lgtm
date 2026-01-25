@@ -1,11 +1,15 @@
-import { PRData, PRFile } from "../github/pr.js";
+import { PRData } from "../github/pr.js";
 import { aggregateContributors, FileContributor } from "../github/blame.js";
 import { chunkDiff, ChangeGroup } from "./chunker.js";
 import { TraceMatch } from "./trace-finder.js";
+import { answerChangesetQuestionsWithLLM } from "../llm/changeset-questions.js";
+
+export type ReviewQuestionCategory = "overview" | "changeset";
 
 export interface ReviewQuestion {
   id: string;
   question: string;
+  category: ReviewQuestionCategory;
   answer?: string;
   context?: string;
 }
@@ -61,6 +65,7 @@ export interface AnalysisCoverage {
   needsSuggestedReviewers: boolean;
   needsQuestions: boolean;
   missingQuestionIds: string[];
+  needsChangesetQuestions: boolean;
   needsTraces: boolean;
 }
 
@@ -72,60 +77,94 @@ export interface AnalysisUpdateResult {
 
 export const ANALYSIS_SHAPE_VERSION = 1;
 
-const STANDARD_QUESTIONS: Omit<ReviewQuestion, "answer" | "context">[] = [
+const OVERVIEW_QUESTIONS: Omit<ReviewQuestion, "answer" | "context">[] = [
   {
-    id: "failure-modes",
-    question:
-      "In what ways can this go wrong? Which of those are covered by the existing code?",
-  },
-  {
-    id: "input-domain",
-    question:
-      "What is the domain of inputs to the code covered by the changes?",
-  },
-  {
-    id: "output-range",
-    question:
-      "What is the range of outputs from the code covered by the changes?",
+    id: "decomposition",
+    category: "overview",
+    question: "Could this be split into smaller PRs?",
   },
   {
     id: "external-deps",
-    question:
-      "What external systems (external to this codebase) do these changes rely upon?",
-  },
-  {
-    id: "decomposition",
-    question: "Can this PR be broken down into smaller PRs?",
-  },
-  {
-    id: "new-symbols",
-    question:
-      "What symbols (functions, classes, types, constants) does it introduce?",
-  },
-  {
-    id: "duplication",
-    question: "Does it introduce duplication?",
-  },
-  {
-    id: "abstractions",
-    question: "Do these abstractions make sense?",
+    category: "overview",
+    question: "Which external systems does this rely on?",
   },
   {
     id: "reviewers",
-    question:
-      "Who worked on these files? Who else might have the context to provide feedback?",
-  },
-  {
-    id: "invariants",
-    question: "What invariants does this change or introduce?",
-  },
-  {
-    id: "error-handling",
-    question: "Are there error paths that aren't handled?",
+    category: "overview",
+    question: "Who has context to review this?",
   },
   {
     id: "rollback",
-    question: "What's the rollback story if this breaks in production?",
+    category: "overview",
+    question: "How would we roll this back if it breaks?",
+  },
+];
+
+const CHANGESET_QUESTIONS: Omit<ReviewQuestion, "answer" | "context">[] = [
+  {
+    id: "failure-modes",
+    category: "changeset",
+    question: "How can this fail? What's already handled?",
+  },
+  {
+    id: "input-domain",
+    category: "changeset",
+    question: "What inputs does this change handle?",
+  },
+  {
+    id: "output-range",
+    category: "changeset",
+    question: "What outputs can this produce?",
+  },
+  {
+    id: "new-symbols",
+    category: "changeset",
+    question: "What new symbols are introduced?",
+  },
+  {
+    id: "duplication",
+    category: "changeset",
+    question: "Does this add duplication?",
+  },
+  {
+    id: "abstractions",
+    category: "changeset",
+    question: "Do the abstractions make sense?",
+  },
+  {
+    id: "invariants",
+    category: "changeset",
+    question: "What invariants change or are added?",
+  },
+  {
+    id: "error-handling",
+    category: "changeset",
+    question: "Are error paths fully handled?",
+  },
+  {
+    id: "testing",
+    category: "changeset",
+    question: "What tests were added or updated? What's untested?",
+  },
+  {
+    id: "performance",
+    category: "changeset",
+    question: "Any impact on latency, memory, or complexity?",
+  },
+  {
+    id: "security-privacy",
+    category: "changeset",
+    question: "Does this touch sensitive data or trust boundaries?",
+  },
+  {
+    id: "compatibility",
+    category: "changeset",
+    question: "Any behavior or API changes that could break callers?",
+  },
+  {
+    id: "observability",
+    category: "changeset",
+    question: "Do we need new or updated logs, metrics, or traces?",
   },
 ];
 
@@ -134,7 +173,7 @@ export function getAnalysisShape(
 ): AnalysisShape {
   return {
     version: ANALYSIS_SHAPE_VERSION,
-    requiredQuestionIds: STANDARD_QUESTIONS.map((question) => question.id),
+    requiredQuestionIds: OVERVIEW_QUESTIONS.map((question) => question.id),
     requireTraces: options.includeTraces ?? false,
   };
 }
@@ -155,6 +194,11 @@ export function getMissingAnalysisParts(
   const needsContributors = !analysis?.contributors;
   const needsSuggestedReviewers = !analysis?.suggestedReviewers;
   const needsQuestions = !analysis?.questions || missingQuestionIds.length > 0;
+  const needsChangesetQuestions =
+    !analysis?.changeGroups ||
+    analysis.changeGroups.some(
+      (group) => !group.reviewQuestions || group.reviewQuestions.length === 0
+    );
   const needsTraces =
     shape.requireTraces && (!analysis?.traces || analysis.traces.length === 0);
 
@@ -164,6 +208,7 @@ export function getMissingAnalysisParts(
     needsSuggestedReviewers,
     needsQuestions,
     missingQuestionIds,
+    needsChangesetQuestions,
     needsTraces,
   };
 }
@@ -174,16 +219,23 @@ export async function analyzeChanges(
 ): Promise<Analysis> {
   const { additions, deletions } = calculateStats(prData);
   const changeGroups = await buildChangeGroups(prData, options);
+  const changesetQuestionsResult = buildChangesetQuestions(changeGroups);
+  let changeGroupsWithQuestions = changesetQuestionsResult.changeGroups;
   const contributors = await buildContributors(prData);
   const suggestedReviewers = buildSuggestedReviewers(prData, contributors);
   const questionsResult = buildQuestions(prData, changeGroups, contributors);
 
-  // If LLM is enabled, we'd call out to generate descriptions and answers here
-  // For now, we provide the structural analysis only
+  if (options.useLLM) {
+    const answeredChangesets = await answerChangesetQuestionsWithLLM(
+      changeGroupsWithQuestions
+    );
+    changeGroupsWithQuestions = answeredChangesets.changeGroups;
+  }
+
   if (options.useLLM) {
     // TODO: Call LLM to generate:
     // - Plain English descriptions for each changeGroup
-    // - Answers to each question
+    // - Answers to each overview question
     // This would use the describer module
   }
 
@@ -198,7 +250,7 @@ export async function analyzeChanges(
     filesChanged: prData.files.length,
     additions,
     deletions,
-    changeGroups,
+    changeGroups: changeGroupsWithQuestions,
     questions: questionsResult.questions,
     contributors,
     suggestedReviewers,
@@ -232,9 +284,22 @@ export async function ensureAnalysis(
   const suggestedReviewers = missing.needsSuggestedReviewers
     ? buildSuggestedReviewers(prData, contributors)
     : existing.suggestedReviewers;
+  const changesetQuestionsResult = buildChangesetQuestions(
+    changeGroups,
+    existing.changeGroups
+  );
+  let changeGroupsWithQuestions = changesetQuestionsResult.changeGroups;
+  let changesetAnswersUpdated = false;
+  if (options.useLLM) {
+    const answeredChangesets = await answerChangesetQuestionsWithLLM(
+      changeGroupsWithQuestions
+    );
+    changeGroupsWithQuestions = answeredChangesets.changeGroups;
+    changesetAnswersUpdated = answeredChangesets.updated;
+  }
   const questionsResult = buildQuestions(
     prData,
-    changeGroups,
+    changeGroupsWithQuestions,
     contributors,
     existing.questions
   );
@@ -252,7 +317,7 @@ export async function ensureAnalysis(
     filesChanged: existing.filesChanged ?? prData.files.length,
     additions: existing.additions ?? additions,
     deletions: existing.deletions ?? deletions,
-    changeGroups,
+    changeGroups: changeGroupsWithQuestions,
     questions: questionsResult.questions,
     contributors,
     suggestedReviewers,
@@ -263,7 +328,9 @@ export async function ensureAnalysis(
     missing.needsContributors ||
     missing.needsSuggestedReviewers ||
     missing.needsQuestions ||
-    questionsResult.updated;
+    questionsResult.updated ||
+    changesetQuestionsResult.updated ||
+    changesetAnswersUpdated;
 
   return {
     analysis: updated ? updatedAnalysis : existing,
@@ -318,7 +385,7 @@ function buildQuestions(
     existingQuestions.map((question) => [question.id, question])
   );
   let updated = false;
-  const standardQuestions = STANDARD_QUESTIONS.map((question) => {
+  const standardQuestions = OVERVIEW_QUESTIONS.map((question) => {
     const existing = existingById.get(question.id);
     const context = getQuestionContext(
       question.id,
@@ -337,6 +404,9 @@ function buildQuestions(
     if (existing.question !== question.question) {
       updated = true;
     }
+    if (existing.category !== question.category) {
+      updated = true;
+    }
     if (!existing.context || existing.context.length === 0) {
       updated = true;
     }
@@ -344,6 +414,7 @@ function buildQuestions(
       ...existing,
       id: question.id,
       question: question.question,
+      category: question.category,
       context:
         existing.context && existing.context.length > 0
           ? existing.context
@@ -352,11 +423,20 @@ function buildQuestions(
   });
 
   const standardIds = new Set(
-    STANDARD_QUESTIONS.map((question) => question.id)
+    OVERVIEW_QUESTIONS.map((question) => question.id)
   );
-  const extraQuestions = existingQuestions.filter(
-    (question) => !standardIds.has(question.id)
-  );
+  const extraQuestions: ReviewQuestion[] = existingQuestions
+    .filter(
+      (question) =>
+        !standardIds.has(question.id) && question.category !== "changeset"
+    )
+    .map((question): ReviewQuestion => {
+      if (question.category) {
+        return question;
+      }
+      updated = true;
+      return { ...question, category: "overview" };
+    });
 
   const questions = [...standardQuestions, ...extraQuestions];
   const questionIds = new Set(questions.map((question) => question.id));
@@ -365,6 +445,59 @@ function buildQuestions(
   }
 
   return { questions, updated, questionIds };
+}
+
+function buildChangesetQuestions(
+  changeGroups: ChangeGroup[],
+  existingChangeGroups: ChangeGroup[] = []
+): { changeGroups: ChangeGroup[]; updated: boolean } {
+  const existingById = new Map(
+    existingChangeGroups.map((group) => [group.id, group])
+  );
+  let updated = false;
+
+  const updatedGroups = changeGroups.map((group) => {
+    const existingGroup = existingById.get(group.id);
+    const existingQuestions = existingGroup?.reviewQuestions ?? [];
+    const existingQuestionsById = new Map(
+      existingQuestions.map((question) => [question.id, question])
+    );
+
+    const reviewQuestions = CHANGESET_QUESTIONS.map((question) => {
+      const existing = existingQuestionsById.get(question.id);
+      if (!existing) {
+        updated = true;
+        return {
+          ...question,
+          answer: undefined,
+          context: undefined,
+        };
+      }
+      if (existing.question !== question.question) {
+        updated = true;
+      }
+      if (existing.category !== question.category) {
+        updated = true;
+      }
+      return {
+        ...existing,
+        id: question.id,
+        question: question.question,
+        category: question.category,
+      };
+    });
+
+    if (existingQuestions.length !== reviewQuestions.length) {
+      updated = true;
+    }
+
+    return {
+      ...group,
+      reviewQuestions,
+    };
+  });
+
+  return { changeGroups: updatedGroups, updated };
 }
 
 function getQuestionContext(

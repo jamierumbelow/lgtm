@@ -1671,24 +1671,11 @@ function getRelevantQuestions(
   group: ChangeGroup,
   analysis: Analysis
 ): ReviewQuestion[] {
-  const relevant = [
-    "failure-modes",
-    "input-domain",
-    "output-range",
-    "error-handling",
-  ];
-
-  if (group.changeType === "test") {
-    return analysis.questions.filter((q) =>
-      ["input-domain", "output-range"].includes(q.id)
-    );
+  if (group.reviewQuestions && group.reviewQuestions.length > 0) {
+    return group.reviewQuestions;
   }
 
-  if (group.symbolsIntroduced?.length) {
-    relevant.push("new-symbols", "abstractions");
-  }
-
-  return analysis.questions.filter((q) => relevant.includes(q.id)).slice(0, 4);
+  return analysis.questions.filter((q) => q.category === "changeset");
 }
 
 function renderGenerationMeta(analysis: Analysis): string {

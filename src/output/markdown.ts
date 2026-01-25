@@ -59,6 +59,21 @@ export function renderMarkdown(analysis: Analysis): string {
       lines.push(`**Modified symbols:** ${group.symbolsModified.map(s => `\`${s}\``).join(', ')}`);
       lines.push('');
     }
+
+    if (group.reviewQuestions && group.reviewQuestions.length > 0) {
+      lines.push('**Review Questions:**');
+      for (const question of group.reviewQuestions) {
+        lines.push(`- ${question.question}`);
+        if (question.answer) {
+          lines.push(`  ${question.answer}`);
+        } else if (question.context) {
+          lines.push(`  ${question.context}`);
+        } else {
+          lines.push('  *Analysis pending...*');
+        }
+      }
+      lines.push('');
+    }
   }
 
   // Questions

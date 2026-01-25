@@ -1,4 +1,5 @@
 import { PRFile } from '../github/pr.js';
+import type { ReviewQuestion } from './analyzer.js';
 import { splitChangesetsWithLLM } from '../llm/changeset-splitter.js';
 
 export interface ChunkOptions {
@@ -29,6 +30,7 @@ export interface ChangeGroup {
   hunks: Array<{ file: string; hunk: DiffHunk }>;
   symbolsIntroduced?: string[];
   symbolsModified?: string[];
+  reviewQuestions?: ReviewQuestion[];
   changeType: 'feature' | 'refactor' | 'bugfix' | 'test' | 'config' | 'docs' | 'unknown';
 }
 
