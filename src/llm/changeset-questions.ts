@@ -18,7 +18,6 @@ export interface ProgressInfo {
 const BatchedAnswersSchema = z.object({
   "failure-modes": z.string(),
   "input-domain": z.string(),
-  "output-range": z.string(),
   duplication: z.string(),
   abstractions: z.string(),
   invariants: z.string(),

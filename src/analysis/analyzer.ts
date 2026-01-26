@@ -128,12 +128,6 @@ const CHANGESET_QUESTIONS: Omit<ReviewQuestion, "answer" | "context">[] = [
     question: "What inputs does this change handle?",
   },
   {
-    id: "output-range",
-    category: "changeset",
-    model: DEFAULT_MODEL,
-    question: "What outputs can this produce?",
-  },
-  {
     id: "duplication",
     category: "changeset",
     model: DEFAULT_MODEL,

@@ -7,15 +7,14 @@ You may use markdown formatting in your answers (e.g. code blocks, lists, bold/i
 Questions to answer:
 1. failure-modes: How can this fail? What's already handled?
 2. input-domain: What inputs does this change handle?
-3. output-range: What outputs can this produce?
-4. duplication: Does this add duplication?
-5. abstractions: Do the abstractions make sense?
-6. invariants: What invariants change or are added?
-7. error-handling: Are error paths fully handled?
-8. testing: What tests were added or updated? What's untested?
-9. performance: Any impact on latency, memory, or complexity?
-10. security-privacy: Does this touch sensitive data or trust boundaries?
-11. compatibility: Any behavior or API changes that could break callers?
-12. observability: Do we need new or updated logs, metrics, or traces?
+3. duplication: Does this add duplication?
+4. abstractions: Do the abstractions make sense?
+5. invariants: What invariants change or are added?
+6. error-handling: Are error paths fully handled?
+7. testing: What tests were added or updated? What's untested?
+8. performance: Any impact on latency, memory, or complexity?
+9. security-privacy: Does this touch sensitive data or trust boundaries?
+10. compatibility: Any behavior or API changes that could break callers?
+11. observability: Do we need new or updated logs, metrics, or traces?
 
 Provide your answers in the structured format requested.
