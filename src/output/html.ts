@@ -1655,6 +1655,9 @@ function getRelevantQuestions(
   group: ChangeGroup,
   analysis: Analysis
 ): ReviewQuestion[] {
+  // Use changeset-level questions stored on the group, not the global analysis questions
+  const questions = group.reviewQuestions ?? [];
+
   const relevant = [
     "failure-modes",
     "input-domain",
@@ -1663,7 +1666,7 @@ function getRelevantQuestions(
   ];
 
   if (group.changeType === "test") {
-    return analysis.questions.filter((q) =>
+    return questions.filter((q) =>
       ["input-domain", "output-range"].includes(q.id)
     );
   }
@@ -1672,7 +1675,7 @@ function getRelevantQuestions(
     relevant.push("new-symbols", "abstractions");
   }
 
-  return analysis.questions.filter((q) => relevant.includes(q.id)).slice(0, 4);
+  return questions.filter((q) => relevant.includes(q.id)).slice(0, 4);
 }
 
 function renderGenerationMeta(analysis: Analysis): string {
