@@ -202,6 +202,7 @@ export function renderHTML(analysis: Analysis): string {
     .change-type.test { background: #3fb95033; color: #3fb950; }
     .change-type.config { background: #d2992233; color: #d29922; }
     .change-type.docs { background: #8b949e33; color: #8b949e; }
+    .change-type.types { background: #79c0ff33; color: #79c0ff; }
     .change-type.unknown { background: #30363d; color: #8b949e; }
 
     .file-list { margin: 12px 0; }
@@ -1714,18 +1715,26 @@ function getRelevantQuestions(
   // Use changeset-level questions stored on the group, not the global analysis questions
   const questions = group.reviewQuestions ?? [];
 
-  const relevant = [
-    "failure-modes",
-    "input-domain",
-    "output-range",
-    "error-handling",
-  ];
+  // Structural change types (types, docs, config) don't have runtime behavior
+  // so questions about failure modes and error handling don't apply
+  const structuralTypes = ["types", "docs", "config"];
+  const isStructural = structuralTypes.includes(group.changeType);
 
   if (group.changeType === "test") {
-    return questions.filter((q) =>
-      ["input-domain", "output-range"].includes(q.id)
-    );
+    return questions.filter((q) => ["input-domain"].includes(q.id));
   }
+
+  if (isStructural) {
+    // For structural changes, focus on design and compatibility questions
+    return questions
+      .filter((q) =>
+        ["abstractions", "duplication", "compatibility"].includes(q.id)
+      )
+      .slice(0, 3);
+  }
+
+  // For functional changes (feature, bugfix, refactor, unknown)
+  const relevant = ["failure-modes", "input-domain", "error-handling"];
 
   if (group.symbolsIntroduced?.length) {
     relevant.push("abstractions");

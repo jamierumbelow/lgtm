@@ -28,6 +28,7 @@ Split the diff into the smallest meaningful units of change. Each changeset shou
    - `test`: Adding or updating tests
    - `docs`: Documentation changes
    - `config`: Configuration or build changes
+   - `types`: Pure type/interface definitions without runtime behavior (e.g., adding interfaces, type aliases, schemas)
    - `chore`: Maintenance tasks (deps, formatting, etc.)
 
 ## Input Format

@@ -6,7 +6,7 @@ const ChangesetSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
-  changeType: z.enum(['feature', 'bugfix', 'refactor', 'test', 'docs', 'config', 'chore']),
+  changeType: z.enum(['feature', 'bugfix', 'refactor', 'test', 'docs', 'config', 'types', 'chore']),
   files: z.array(z.string()),
   hunkRefs: z.array(z.string()),
 });
@@ -92,6 +92,7 @@ function mapToChangeGroups(changesets: ChangesetResponse[], fileDiffs: FileDiff[
     else if (cs.changeType === 'test') changeType = 'test';
     else if (cs.changeType === 'docs') changeType = 'docs';
     else if (cs.changeType === 'config') changeType = 'config';
+    else if (cs.changeType === 'types') changeType = 'types';
 
     return {
       id: cs.id || `group-${index}`,

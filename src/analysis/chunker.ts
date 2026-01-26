@@ -31,7 +31,7 @@ export interface ChangeGroup {
   symbolsIntroduced?: string[];
   symbolsModified?: string[];
   reviewQuestions?: ReviewQuestion[];
-  changeType: 'feature' | 'refactor' | 'bugfix' | 'test' | 'config' | 'docs' | 'unknown';
+  changeType: 'feature' | 'refactor' | 'bugfix' | 'test' | 'config' | 'docs' | 'types' | 'unknown';
 }
 
 /**
