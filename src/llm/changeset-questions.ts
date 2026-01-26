@@ -8,6 +8,12 @@ import {
   DEFAULT_CHANGESET_QUESTION_CONCURRENCY,
 } from "../config.js";
 
+export interface ProgressInfo {
+  step: string;
+  current: number;
+  total: number;
+}
+
 // Schema for batched question answers - all 13 questions answered at once
 const BatchedAnswersSchema = z.object({
   "failure-modes": z.string(),
@@ -38,6 +44,7 @@ export async function answerChangesetQuestionsWithLLM(
     log?: (message: string) => void;
     maxConcurrent?: number;
     onQuestionAnswered?: (changeGroups: ChangeGroup[]) => void | Promise<void>;
+    onProgress?: (info: ProgressInfo) => void;
   } = {}
 ): Promise<{ changeGroups: ChangeGroup[]; updated: boolean }> {
   let updated = false;
@@ -58,9 +65,18 @@ export async function answerChangesetQuestionsWithLLM(
     `[lgtm] processing ${tasks.length} changesets (parallel=${maxConcurrent})`
   );
 
+  let completedCount = 0;
+  const totalCount = tasks.length;
+
   await runWithConcurrency(tasks, maxConcurrent, async ({ group }) => {
     const effectiveModel = options.model ?? DEFAULT_MODEL;
     try {
+      options.onProgress?.({
+        step: `Analyzing "${group.title}"`,
+        current: completedCount + 1,
+        total: totalCount,
+      });
+
       log?.(
         `[lgtm] answering all questions for "${group.title}" in single call`
       );
@@ -85,7 +101,14 @@ export async function answerChangesetQuestionsWithLLM(
       // Apply answers to the corresponding questions
       applyAnswersToGroup(group, answers);
       updated = true;
+      completedCount++;
       log?.(`[lgtm] answered all questions for "${group.title}"`);
+
+      options.onProgress?.({
+        step: `Analyzed "${group.title}"`,
+        current: completedCount,
+        total: totalCount,
+      });
 
       // Persist to cache immediately after answering
       if (options.onQuestionAnswered) {

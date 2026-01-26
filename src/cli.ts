@@ -28,7 +28,9 @@ import {
   getLLMUsageRecords,
   getLLMUsageTotals,
   resetLLMUsage,
+  getFormattedRunningTotal,
 } from "./llm/usage.js";
+import type { ProgressInfo } from "./analysis/analyzer.js";
 import { calculateTokenlensCost } from "./llm/tokenlens.js";
 
 const program = new Command();
@@ -263,6 +265,13 @@ program
             }`
           );
           prData = cached.prData;
+
+          const updateSpinnerWithProgress = (info: ProgressInfo) => {
+            const tokens = getFormattedRunningTotal();
+            spinner.text = `${info.step} (${info.current}/${info.total}) (${tokens} tokens)`;
+          };
+
+          spinner.start("Checking for missing analysis...");
           const updateResult = await ensureAnalysis(
             prData,
             {
@@ -272,13 +281,16 @@ program
               onProgress: prUrl
                 ? (partialAnalysis) => setCache(prUrl, prData!, partialAnalysis)
                 : undefined,
+              onStepProgress: updateSpinnerWithProgress,
             },
             cached.analysis
           );
           analysis = updateResult.analysis;
           if (updateResult.updated) {
-            spinner.start("Updating cached analysis...");
-            spinner.succeed("Updated cached analysis");
+            const finalTokens = getFormattedRunningTotal();
+            spinner.succeed(`Updated cached analysis (${finalTokens} tokens)`);
+          } else {
+            spinner.succeed("Cache is up to date");
           }
           if (prUrl && updateResult.updated) {
             setCache(prUrl, prData, analysis);
@@ -309,6 +321,11 @@ program
         spinner.succeed(`Fetched PR: ${prData.title || "Local diff"}`);
 
         // Analyze changes
+        const updateSpinnerWithProgress = (info: ProgressInfo) => {
+          const tokens = getFormattedRunningTotal();
+          spinner.text = `${info.step} (${info.current}/${info.total}) (${tokens} tokens)`;
+        };
+
         spinner.start("Analyzing changes...");
         analysis = await analyzeChanges(prData, {
           useLLM: options.llm !== false,
@@ -316,9 +333,11 @@ program
           onProgress: prUrl
             ? (partialAnalysis) => setCache(prUrl, prData!, partialAnalysis)
             : undefined,
+          onStepProgress: updateSpinnerWithProgress,
         });
+        const finalTokens = getFormattedRunningTotal();
         spinner.succeed(
-          `Analyzed ${analysis.changeGroups.length} change groups across ${analysis.filesChanged} files`
+          `Analyzed ${analysis.changeGroups.length} change groups across ${analysis.filesChanged} files (${finalTokens} tokens)`
         );
 
         // Find LLM traces if requested

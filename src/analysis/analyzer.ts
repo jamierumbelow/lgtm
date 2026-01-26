@@ -2,7 +2,10 @@ import { PRData } from "../github/pr.js";
 import { aggregateContributors, FileContributor } from "../github/blame.js";
 import { chunkDiff, ChangeGroup } from "./chunker.js";
 import { TraceMatch } from "./trace-finder.js";
-import { answerChangesetQuestionsWithLLM } from "../llm/changeset-questions.js";
+import {
+  answerChangesetQuestionsWithLLM,
+  ProgressInfo,
+} from "../llm/changeset-questions.js";
 import { ModelChoice, DEFAULT_MODEL } from "../config.js";
 
 export type ReviewQuestionCategory = "overview" | "changeset";
@@ -55,7 +58,10 @@ interface AnalyzeOptions {
   includeTraces?: boolean;
   verbose?: boolean;
   onProgress?: (analysis: Analysis) => void | Promise<void>;
+  onStepProgress?: (info: ProgressInfo) => void;
 }
+
+export type { ProgressInfo };
 
 export interface AnalysisShape {
   version: number;
@@ -277,6 +283,7 @@ export async function analyzeChanges(
         onQuestionAnswered: options.onProgress
           ? (groups) => options.onProgress!(buildPartialAnalysis(groups))
           : undefined,
+        onProgress: options.onStepProgress,
       }
     );
     changeGroupsWithQuestions = answeredChangesets.changeGroups;
@@ -364,6 +371,7 @@ export async function ensureAnalysis(
         onQuestionAnswered: options.onProgress
           ? (groups) => options.onProgress!(buildPartialAnalysis(groups))
           : undefined,
+        onProgress: options.onStepProgress,
       }
     );
     changeGroupsWithQuestions = answeredChangesets.changeGroups;
