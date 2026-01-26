@@ -610,6 +610,62 @@ export function renderHTML(analysis: Analysis): string {
       display: block;
     }
 
+    .review-question-answer p {
+      margin-bottom: 8px;
+    }
+
+    .review-question-answer p:last-child {
+      margin-bottom: 0;
+    }
+
+    .review-question-answer ul,
+    .review-question-answer ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+
+    .review-question-answer li {
+      margin-bottom: 4px;
+    }
+
+    .review-question-answer code {
+      background: var(--bg-tertiary);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+
+    .review-question-answer pre {
+      background: var(--bg-tertiary);
+      padding: 8px;
+      border-radius: 4px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+
+    .review-question-answer pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .question-content p {
+      margin-bottom: 8px;
+    }
+
+    .question-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    .question-content ul,
+    .question-content ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+
+    .question-content li {
+      margin-bottom: 4px;
+    }
+
     .navigation {
       position: fixed;
       bottom: 24px;
@@ -1174,7 +1230,7 @@ function renderOverview(analysis: Analysis): string {
                 <span>${escapeHtml(q.question)}</span>
               </div>
               <div class="question-content">
-                ${q.answer ? `<p>${escapeHtml(q.answer)}</p>` : ""}
+                ${q.answer ? marked.parse(q.answer) : ""}
                 ${
                   q.context
                     ? `<pre>${escapeHtml(q.context)}</pre>`
@@ -1457,7 +1513,7 @@ function renderSlide(
                 <div class="review-question-answer">
                   ${
                     q.answer
-                      ? escapeHtml(q.answer)
+                      ? marked.parse(q.answer)
                       : q.context
                       ? `<pre style="white-space: pre-wrap; font-size: 12px;">${escapeHtml(
                           q.context
