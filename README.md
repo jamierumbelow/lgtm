@@ -6,7 +6,16 @@
 
 ## Installation
 
-### Quick Install (macOS/Linux)
+### Quick Install (macOS)
+
+Make sure you have the GitHub CLI installed and authenticated:
+
+```bash
+brew install gh
+gh auth login
+```
+
+Then run the installer:
 
 ```bash
 gh api -H "Accept: application/vnd.github.raw" repos/jamierumbelow/lgtm/contents/install.sh | bash
