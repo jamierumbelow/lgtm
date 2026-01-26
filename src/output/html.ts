@@ -410,15 +410,6 @@ export function renderHTML(analysis: Analysis): string {
       transition: all 0.15s;
     }
 
-    .diff-mode-btn svg {
-      display: block;
-      stroke: currentColor;
-      fill: none;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
     .diff-mode-btn:hover {
       color: var(--text);
       background: var(--bg-tertiary);
@@ -1507,17 +1498,10 @@ function renderDiff(group: ChangeGroup): string {
           <span class="diff-file-name">${escapeHtml(file)}</span>
           <div class="diff-mode-toggle">
             <button class="diff-mode-btn" data-mode="side-by-side" onclick="setDiffMode('side-by-side')">
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                <rect x="3" y="4" width="7" height="16" rx="1"></rect>
-                <rect x="14" y="4" width="7" height="16" rx="1"></rect>
-              </svg>
+              Side-by-side
             </button>
             <button class="diff-mode-btn" data-mode="integrated" onclick="setDiffMode('integrated')">
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                <line x1="4" y1="6" x2="20" y2="6"></line>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-                <line x1="4" y1="18" x2="20" y2="18"></line>
-              </svg>
+              Integrated
             </button>
           </div>
         </div>
@@ -1671,11 +1655,24 @@ function getRelevantQuestions(
   group: ChangeGroup,
   analysis: Analysis
 ): ReviewQuestion[] {
-  if (group.reviewQuestions && group.reviewQuestions.length > 0) {
-    return group.reviewQuestions;
+  const relevant = [
+    "failure-modes",
+    "input-domain",
+    "output-range",
+    "error-handling",
+  ];
+
+  if (group.changeType === "test") {
+    return analysis.questions.filter((q) =>
+      ["input-domain", "output-range"].includes(q.id)
+    );
   }
 
-  return analysis.questions.filter((q) => q.category === "changeset");
+  if (group.symbolsIntroduced?.length) {
+    relevant.push("new-symbols", "abstractions");
+  }
+
+  return analysis.questions.filter((q) => relevant.includes(q.id)).slice(0, 4);
 }
 
 function renderGenerationMeta(analysis: Analysis): string {

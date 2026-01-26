@@ -18,11 +18,13 @@ let totals: LLMUsageTotals = { tokenCount: 0, costUsd: 0 };
 let records: LLMUsageRecord[] = [];
 
 function getNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function extractTokenCount(usage: UsageLike): number | undefined {
-  if (!usage || typeof usage !== 'object') return undefined;
+  if (!usage || typeof usage !== "object") return undefined;
 
   const total = getNumber((usage as Record<string, unknown>).totalTokens);
   if (total !== undefined) return total;
@@ -47,11 +49,11 @@ function extractTokenCount(usage: UsageLike): number | undefined {
 }
 
 function extractCostUsd(costLike: unknown): number | undefined {
-  if (typeof costLike === 'number' && Number.isFinite(costLike)) {
+  if (typeof costLike === "number" && Number.isFinite(costLike)) {
     return costLike;
   }
 
-  if (costLike && typeof costLike === 'object') {
+  if (costLike && typeof costLike === "object") {
     const record = costLike as Record<string, unknown>;
     const total = getNumber(record.total) ?? getNumber(record.amount);
     if (total !== undefined) return total;
