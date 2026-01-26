@@ -17,6 +17,12 @@ import {
 import { recordLLMUsage } from "./usage.js";
 import { ModelChoice, DEFAULT_MODEL } from "../config.js";
 import { getModelSpec, addPromptSuffix, MODEL_SPECS } from "./models.js";
+import {
+  createPromptCacheKey,
+  getCachedPromptResponse,
+  getSchemaSignature,
+  setCachedPromptResponse,
+} from "./prompt-cache.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROMPTS_DIR = join(__dirname, "../../prompts");
@@ -74,6 +80,18 @@ export async function generateStructured<T>(
   while (true) {
     try {
       await waitForRateLimitGate();
+      const cacheKey = createPromptCacheKey({
+        modelId: modelSpec.modelId,
+        systemPrompt,
+        userPrompt,
+        schemaSignature: getSchemaSignature(schema),
+        temperature,
+        maxTokens,
+      });
+      const cached = getCachedPromptResponse<T>(cacheKey);
+      if (cached) {
+        return cached;
+      }
       const result = await generateObject({
         model: modelClient(modelSpec.modelId),
         system: systemPrompt,
@@ -90,6 +108,7 @@ export async function generateStructured<T>(
           (result as { cost?: number; costUsd?: number }).costUsd
       );
 
+      setCachedPromptResponse(cacheKey, result.object);
       return result.object;
     } catch (error) {
       if (
