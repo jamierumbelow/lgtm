@@ -3,7 +3,16 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
-import { getPRData } from "./github/pr.js";
+import {
+  getPRData,
+  parseTarget,
+  isGitRepository,
+  getCurrentBranch,
+  getDefaultBranch,
+  hasUncommittedChanges,
+  refsAreSame,
+  getWorkingDirDiffHash,
+} from "./github/pr.js";
 import { analyzeChanges, ensureAnalysis } from "./analysis/analyzer.js";
 import { findTraces } from "./analysis/trace-finder.js";
 import { renderMarkdown } from "./output/markdown.js";
@@ -329,10 +338,13 @@ program
 // Main review command
 program
   .argument(
-    "[pr-url]",
-    "GitHub PR URL (e.g., https://github.com/org/repo/pull/123)"
+    "[target]",
+    "PR URL, branch, SHA, or diff range (e.g., main...feature, abc123)"
   )
-  .option("-b, --base <branch>", "Base branch for local comparison", "main")
+  .option(
+    "-b, --base <branch>",
+    "Base branch for local comparison (default: auto-detect)"
+  )
   .option("-h, --head <branch>", "Head branch for local comparison")
   .option("-f, --format <format>", "Output format: md, json, html", "md")
   .option(
@@ -357,7 +369,7 @@ program
   )
   .option("--verbose", "Enable verbose logging")
   .option("--fresh", "Bypass cache and fetch fresh data")
-  .action(async (prUrl, options) => {
+  .action(async (target, options) => {
     const spinner = ora();
     const generationStartedAt = Date.now();
     resetLLMUsage();
@@ -381,20 +393,79 @@ program
         process.exit(1);
       }
 
-      // Determine source: PR URL or local branches
-      if (!prUrl && !options.head) {
-        program.help();
-        return;
+      // Determine if this is a PR URL (for caching purposes)
+      const parsedTarget = target ? parseTarget(target) : null;
+      const isPrUrl = parsedTarget?.type === "pr";
+
+      // For PR URLs, we know the cache key upfront
+      // For local diffs, we include a hash of working directory changes if applicable
+      const getCacheKeyForLocal = (
+        base: string,
+        head: string,
+        isWorkingDir: boolean
+      ) => {
+        if (isWorkingDir) {
+          // Include hash of working directory diff to invalidate cache when changes change
+          const diffHash = getWorkingDirDiffHash(base);
+          return `local:${base}...${head}:${diffHash}`;
+        }
+        return `local:${base}...${head}`;
+      };
+
+      // Helper to detect if this will be a working directory diff
+      const willBeWorkingDirDiff = (base: string, head: string): boolean => {
+        return refsAreSame(base, head) && hasUncommittedChanges();
+      };
+
+      let cacheKey: string | null = isPrUrl ? parsedTarget!.prUrl! : null;
+
+      // Try to compute a preliminary cache key for local diffs
+      if (
+        !isPrUrl &&
+        parsedTarget?.type === "local" &&
+        parsedTarget.base &&
+        parsedTarget.head
+      ) {
+        const isWorkingDir = willBeWorkingDirDiff(
+          parsedTarget.base,
+          parsedTarget.head
+        );
+        cacheKey = getCacheKeyForLocal(
+          parsedTarget.base,
+          parsedTarget.head,
+          isWorkingDir
+        );
+      } else if (!isPrUrl && !target && isGitRepository()) {
+        // No target - will use current branch or working directory
+        const currentBranch = getCurrentBranch();
+        const defaultBranch = getDefaultBranch();
+        if (currentBranch && currentBranch !== defaultBranch) {
+          const isWorkingDir = willBeWorkingDirDiff(
+            defaultBranch,
+            currentBranch
+          );
+          cacheKey = getCacheKeyForLocal(
+            defaultBranch,
+            currentBranch,
+            isWorkingDir
+          );
+        } else if (currentBranch && hasUncommittedChanges()) {
+          cacheKey = getCacheKeyForLocal(
+            defaultBranch,
+            "(working directory)",
+            true
+          );
+        }
       }
 
       let prData: Awaited<ReturnType<typeof getPRData>> | undefined;
       let analysis: Awaited<ReturnType<typeof analyzeChanges>> | undefined;
 
-      // Check cache for PR URLs (not local branches)
-      if (prUrl && !options.fresh) {
-        const cached = getCached(prUrl);
+      // Check cache
+      if (cacheKey && !options.fresh) {
+        const cached = getCached(cacheKey);
         if (cached) {
-          const cacheInfo = getCacheInfo(prUrl);
+          const cacheInfo = getCacheInfo(cacheKey);
           spinner.succeed(
             `Using cached analysis from ${
               cacheInfo.timestamp?.toLocaleString() || "cache"
@@ -417,8 +488,9 @@ program
               includeTraces: options.findTraces,
               verbose: options.verbose,
               model: selectedModel,
-              onProgress: prUrl
-                ? (partialAnalysis) => setCache(prUrl, prData!, partialAnalysis)
+              onProgress: cacheKey
+                ? (partialAnalysis) =>
+                    setCache(cacheKey!, prData!, partialAnalysis)
                 : undefined,
               onStepProgress: updateSpinnerWithProgress,
               onChangesetsCreated: (count) => {
@@ -437,8 +509,8 @@ program
           } else {
             spinner.succeed("Cache is up to date");
           }
-          if (prUrl && updateResult.updated) {
-            setCache(prUrl, prData, analysis);
+          if (cacheKey && updateResult.updated) {
+            setCache(cacheKey, prData, analysis);
           }
           if (options.findTraces && updateResult.missing.needsTraces) {
             spinner.start("Searching for LLM session traces...");
@@ -448,22 +520,44 @@ program
             });
             analysis.traces = traces;
             spinner.succeed(`Found ${traces.length} potential session traces`);
-            setCache(prUrl, prData, analysis);
+            if (cacheKey) setCache(cacheKey, prData, analysis);
           }
         }
       }
 
       // Clear cache if --fresh
-      if (prUrl && options.fresh) {
-        clearCache(prUrl);
+      if (cacheKey && options.fresh) {
+        clearCache(cacheKey);
       }
 
       // Fetch and analyze if not cached
       if (!analysis) {
-        // Fetch PR data
-        spinner.start("Fetching PR data...");
-        prData = await getPRData(prUrl, options);
-        spinner.succeed(`Fetched PR: ${prData.title || "Local diff"}`);
+        // Fetch PR/diff data
+        const isLocalDiff = !isPrUrl;
+        spinner.start(
+          isLocalDiff ? "Analyzing local diff..." : "Fetching PR data..."
+        );
+        prData = await getPRData(target, options);
+
+        // Compute cache key for local diffs if we couldn't determine it upfront
+        if (!cacheKey && isLocalDiff) {
+          const isWorkingDir = prData.headBranch === "(working directory)";
+          cacheKey = getCacheKeyForLocal(
+            prData.baseBranch,
+            prData.headBranch,
+            isWorkingDir
+          );
+        }
+
+        // Build a descriptive title for the spinner
+        const diffDescription = prData.title
+          ? prData.title
+          : `${prData.baseBranch}...${prData.headBranch}`;
+        spinner.succeed(
+          isLocalDiff
+            ? `Local diff: ${diffDescription}`
+            : `Fetched PR: ${diffDescription}`
+        );
 
         // Analyze changes
         const updateSpinnerWithProgress = (info: ProgressInfo) => {
@@ -478,8 +572,8 @@ program
           useLLM: options.llm !== false,
           verbose: options.verbose,
           model: selectedModel,
-          onProgress: prUrl
-            ? (partialAnalysis) => setCache(prUrl, prData!, partialAnalysis)
+          onProgress: cacheKey
+            ? (partialAnalysis) => setCache(cacheKey!, prData!, partialAnalysis)
             : undefined,
           onStepProgress: updateSpinnerWithProgress,
           onChangesetsCreated: (count) => {
@@ -507,9 +601,9 @@ program
           spinner.succeed(`Found ${traces.length} potential session traces`);
         }
 
-        // Cache the results for PR URLs
-        if (prUrl) {
-          setCache(prUrl, prData, analysis);
+        // Cache the results
+        if (cacheKey) {
+          setCache(cacheKey, prData, analysis);
         }
       }
 
