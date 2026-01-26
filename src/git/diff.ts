@@ -186,12 +186,12 @@ export function getWorkingDirDiffHash(base: string): string {
     let hash = 0;
     for (let i = 0; i < diff.length; i++) {
       const char = diff.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
     // Return absolute value as hex, padded to 8 chars
-    return Math.abs(hash).toString(16).padStart(8, '0');
+    return Math.abs(hash).toString(16).padStart(8, "0");
   } catch {
-    return 'unknown';
+    return "unknown";
   }
 }

@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync } from "child_process";
 import {
   parseTarget,
   getDefaultBranch,
@@ -9,13 +9,13 @@ import {
   refsAreSame,
   getWorkingDirDiffHash,
   type DiffTarget,
-} from '../git/diff.js';
+} from "../git/diff.js";
 
 export interface PRFile {
   path: string;
   additions: number;
   deletions: number;
-  status: 'added' | 'modified' | 'removed' | 'renamed';
+  status: "added" | "modified" | "removed" | "renamed";
   previousPath?: string;
 }
 
@@ -39,7 +39,10 @@ interface CLIOptions {
 /**
  * Fetch PR data from GitHub using the gh CLI, or generate from local branches/commits
  */
-export async function getPRData(target: string | undefined, options: CLIOptions): Promise<PRData> {
+export async function getPRData(
+  target: string | undefined,
+  options: CLIOptions
+): Promise<PRData> {
   // If explicit --head is provided, use local diff mode
   if (options.head) {
     return fetchLocalDiff(options.base || getDefaultBranch(), options.head);
@@ -48,11 +51,13 @@ export async function getPRData(target: string | undefined, options: CLIOptions)
   // If no target, try to use current branch or uncommitted changes
   if (!target) {
     if (!isGitRepository()) {
-      throw new Error('Must provide a PR URL, branch, or commit SHA');
+      throw new Error("Must provide a PR URL, branch, or commit SHA");
     }
     const currentBranch = getCurrentBranch();
     if (!currentBranch) {
-      throw new Error('Not on a branch and no target specified. Provide a PR URL, branch, or commit SHA.');
+      throw new Error(
+        "Not on a branch and no target specified. Provide a PR URL, branch, or commit SHA."
+      );
     }
     const defaultBranch = getDefaultBranch();
     if (currentBranch === defaultBranch) {
@@ -60,7 +65,9 @@ export async function getPRData(target: string | undefined, options: CLIOptions)
       if (hasUncommittedChanges()) {
         return fetchWorkingDirDiff(defaultBranch);
       }
-      throw new Error(`Already on ${defaultBranch} with no uncommitted changes. Provide a PR URL, branch, or commit SHA to compare.`);
+      throw new Error(
+        `Already on ${defaultBranch} with no uncommitted changes. Provide a PR URL, branch, or commit SHA to compare.`
+      );
     }
     return fetchLocalDiff(defaultBranch, currentBranch);
   }
@@ -68,7 +75,7 @@ export async function getPRData(target: string | undefined, options: CLIOptions)
   // Parse the target to determine if it's a PR URL or local reference
   const parsed = parseTarget(target);
 
-  if (parsed.type === 'pr') {
+  if (parsed.type === "pr") {
     return fetchRemotePR(parsed.prUrl!);
   }
 
@@ -77,45 +84,57 @@ export async function getPRData(target: string | undefined, options: CLIOptions)
   const head = parsed.head || options.head;
 
   if (!head) {
-    throw new Error('Could not determine head reference');
+    throw new Error("Could not determine head reference");
   }
 
   // Validate refs exist
   if (!validateRef(base)) {
-    throw new Error(`Base reference "${base}" not found. Make sure it exists locally.`);
+    throw new Error(
+      `Base reference "${base}" not found. Make sure it exists locally.`
+    );
   }
   if (!validateRef(head)) {
-    throw new Error(`Head reference "${head}" not found. Make sure it exists locally.`);
+    throw new Error(
+      `Head reference "${head}" not found. Make sure it exists locally.`
+    );
   }
 
   return fetchLocalDiff(base, head);
 }
 
 // Re-export for use in CLI
-export { parseTarget, getDefaultBranch, isGitRepository, getCurrentBranch, hasUncommittedChanges, refsAreSame, getWorkingDirDiffHash };
+export {
+  parseTarget,
+  getDefaultBranch,
+  isGitRepository,
+  getCurrentBranch,
+  hasUncommittedChanges,
+  refsAreSame,
+  getWorkingDirDiffHash,
+};
 export type { DiffTarget };
 
 async function fetchRemotePR(prUrl: string): Promise<PRData> {
   // Verify gh is available
   try {
-    execSync('gh --version', { stdio: 'ignore' });
+    execSync("gh --version", { stdio: "ignore" });
   } catch {
     throw new Error(
-      'GitHub CLI (gh) not found. Install it from https://cli.github.com/\n' +
-      'Then run: gh auth login'
+      "GitHub CLI (gh) not found. Install it from https://cli.github.com/\n" +
+        "Then run: gh auth login"
     );
   }
 
   // Fetch PR metadata
   const metadataJson = execSync(
     `gh pr view "${prUrl}" --json title,body,author,files,baseRefName,headRefName,createdAt`,
-    { encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 }
+    { encoding: "utf-8", maxBuffer: 50 * 1024 * 1024 }
   );
   const metadata = JSON.parse(metadataJson);
 
   // Fetch the diff
   const diff = execSync(`gh pr diff "${prUrl}"`, {
-    encoding: 'utf-8',
+    encoding: "utf-8",
     maxBuffer: 50 * 1024 * 1024,
   });
 
@@ -149,22 +168,21 @@ async function fetchLocalDiff(base: string, head: string): Promise<PRData> {
       baseBranch: base,
       headBranch: head,
       files: [],
-      diff: '',
+      diff: "",
     };
   }
 
   // Get list of changed files between commits
-  const filesOutput = execSync(
-    `git diff --name-status ${base}...${head}`,
-    { encoding: 'utf-8' }
-  );
+  const filesOutput = execSync(`git diff --name-status ${base}...${head}`, {
+    encoding: "utf-8",
+  });
 
   const files: PRFile[] = filesOutput
     .trim()
-    .split('\n')
+    .split("\n")
     .filter(Boolean)
-    .map(line => {
-      const [status, ...pathParts] = line.split('\t');
+    .map((line) => {
+      const [status, ...pathParts] = line.split("\t");
       const path = pathParts[pathParts.length - 1];
       const previousPath = pathParts.length > 1 ? pathParts[0] : undefined;
 
@@ -174,10 +192,10 @@ async function fetchLocalDiff(base: string, head: string): Promise<PRData> {
       try {
         const stat = execSync(
           `git diff --numstat ${base}...${head} -- "${path}"`,
-          { encoding: 'utf-8' }
+          { encoding: "utf-8" }
         ).trim();
         if (stat) {
-          const [add, del] = stat.split('\t');
+          const [add, del] = stat.split("\t");
           additions = parseInt(add) || 0;
           deletions = parseInt(del) || 0;
         }
@@ -196,7 +214,7 @@ async function fetchLocalDiff(base: string, head: string): Promise<PRData> {
 
   // Get the full diff
   const diff = execSync(`git diff ${base}...${head}`, {
-    encoding: 'utf-8',
+    encoding: "utf-8",
     maxBuffer: 50 * 1024 * 1024,
   });
 
@@ -213,17 +231,16 @@ async function fetchLocalDiff(base: string, head: string): Promise<PRData> {
  */
 async function fetchWorkingDirDiff(base: string): Promise<PRData> {
   // Get list of changed files (staged + unstaged)
-  const filesOutput = execSync(
-    `git diff --name-status ${base}`,
-    { encoding: 'utf-8' }
-  );
+  const filesOutput = execSync(`git diff --name-status ${base}`, {
+    encoding: "utf-8",
+  });
 
   const files: PRFile[] = filesOutput
     .trim()
-    .split('\n')
+    .split("\n")
     .filter(Boolean)
-    .map(line => {
-      const [status, ...pathParts] = line.split('\t');
+    .map((line) => {
+      const [status, ...pathParts] = line.split("\t");
       const path = pathParts[pathParts.length - 1];
       const previousPath = pathParts.length > 1 ? pathParts[0] : undefined;
 
@@ -231,12 +248,11 @@ async function fetchWorkingDirDiff(base: string): Promise<PRData> {
       let additions = 0;
       let deletions = 0;
       try {
-        const stat = execSync(
-          `git diff --numstat ${base} -- "${path}"`,
-          { encoding: 'utf-8' }
-        ).trim();
+        const stat = execSync(`git diff --numstat ${base} -- "${path}"`, {
+          encoding: "utf-8",
+        }).trim();
         if (stat) {
-          const [add, del] = stat.split('\t');
+          const [add, del] = stat.split("\t");
           additions = parseInt(add) || 0;
           deletions = parseInt(del) || 0;
         }
@@ -255,32 +271,40 @@ async function fetchWorkingDirDiff(base: string): Promise<PRData> {
 
   // Get the full diff
   const diff = execSync(`git diff ${base}`, {
-    encoding: 'utf-8',
+    encoding: "utf-8",
     maxBuffer: 50 * 1024 * 1024,
   });
 
   return {
     baseBranch: base,
-    headBranch: '(working directory)',
+    headBranch: "(working directory)",
     files,
     diff,
   };
 }
 
-function mapFileStatus(status: string): PRFile['status'] {
+function mapFileStatus(status: string): PRFile["status"] {
   switch (status?.toLowerCase()) {
-    case 'added': return 'added';
-    case 'removed': return 'removed';
-    case 'renamed': return 'renamed';
-    default: return 'modified';
+    case "added":
+      return "added";
+    case "removed":
+      return "removed";
+    case "renamed":
+      return "renamed";
+    default:
+      return "modified";
   }
 }
 
-function mapGitStatus(status: string): PRFile['status'] {
+function mapGitStatus(status: string): PRFile["status"] {
   switch (status[0]) {
-    case 'A': return 'added';
-    case 'D': return 'removed';
-    case 'R': return 'renamed';
-    default: return 'modified';
+    case "A":
+      return "added";
+    case "D":
+      return "removed";
+    case "R":
+      return "renamed";
+    default:
+      return "modified";
   }
 }

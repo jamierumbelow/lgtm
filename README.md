@@ -117,20 +117,20 @@ lgtm version              # Show detailed version information
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
-| `-b, --base <branch>` | Base branch for local comparison (auto-detected by default) |
-| `-h, --head <branch>` | Head branch for local comparison |
-| `-f, --format <format>` | Output format: `html` (default), `md`, `json` |
-| `-o, --output <file>` | Output file (defaults to browser for html, stdout for md/json) |
-| `-p, --port <port>` | Port for HTML server (default: 3000) |
-| `-m, --model <model>` | LLM model: `claude-sonnet-4.5`, `claude-opus-4.5`, `gpt-5.2`, `gemini-3-flash` |
-| `--no-llm` | Skip LLM-powered analysis |
-| `--find-traces` | Find LLM session traces that generated the changes |
-| `--claude-dir <path>` | Path to Claude Code history (default: `~/.claude`) |
-| `--cursor-dir <path>` | Path to Cursor history directory |
-| `--fresh` | Bypass cache and fetch fresh data |
-| `--verbose` | Enable verbose logging |
+| Option                  | Description                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| `-b, --base <branch>`   | Base branch for local comparison (auto-detected by default)                    |
+| `-h, --head <branch>`   | Head branch for local comparison                                               |
+| `-f, --format <format>` | Output format: `html` (default), `md`, `json`                                  |
+| `-o, --output <file>`   | Output file (defaults to browser for html, stdout for md/json)                 |
+| `-p, --port <port>`     | Port for HTML server (default: 3000)                                           |
+| `-m, --model <model>`   | LLM model: `claude-sonnet-4.5`, `claude-opus-4.5`, `gpt-5.2`, `gemini-3-flash` |
+| `--no-llm`              | Skip LLM-powered analysis                                                      |
+| `--find-traces`         | Find LLM session traces that generated the changes                             |
+| `--claude-dir <path>`   | Path to Claude Code history (default: `~/.claude`)                             |
+| `--cursor-dir <path>`   | Path to Cursor history directory                                               |
+| `--fresh`               | Bypass cache and fetch fresh data                                              |
+| `--verbose`             | Enable verbose logging                                                         |
 
 ## What it does
 
