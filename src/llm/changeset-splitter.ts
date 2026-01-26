@@ -7,6 +7,7 @@ import {
   parseDiff,
 } from "../analysis/chunker.js";
 import { createStableChangeGroupId } from "../analysis/change-id.js";
+import { trimHunkContent } from "./diff-context.js";
 import { isLLMExcludedFile, isLockfilePath } from "./file-filters.js";
 
 const ChangesetSchema = z.object({
@@ -81,7 +82,7 @@ function buildUserPrompt(
     diffContent += `\n=== ${file.path} ===\n`;
     file.hunks.forEach((hunk, i) => {
       diffContent += `\n[Hunk ${i}] @@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@ ${hunk.header}\n`;
-      diffContent += hunk.content + "\n";
+      diffContent += trimHunkContent(hunk.content, 1) + "\n";
     });
   }
 

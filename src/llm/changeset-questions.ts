@@ -8,6 +8,7 @@ import {
   DEFAULT_CHANGESET_QUESTION_CONCURRENCY,
 } from "../config.js";
 import { isLLMExcludedFile } from "./file-filters.js";
+import { trimHunkContent } from "./diff-context.js";
 import {
   getCachedChangesetQuestions,
   setCachedChangesetQuestions,
@@ -300,7 +301,10 @@ function buildUserPrompt(
     .filter(({ file }) => !isLLMExcludedFile(file))
     .map(
       ({ file, hunk }, index) =>
-        `### ${file} (Hunk ${index})\n@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@ ${hunk.header}\n${hunk.content}`
+        `### ${file} (Hunk ${index})\n@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@ ${hunk.header}\n${trimHunkContent(
+          hunk.content,
+          1
+        )}`
     )
     .join("\n\n");
 
