@@ -45,6 +45,13 @@ export function parseTarget(target: string): DiffTarget {
 
   // Single reference: could be SHA, branch, or tag
   // Treat as head, compare against default branch
+  if (isLikelyCommitHash(target) && !hasUncommittedChanges()) {
+    return {
+      type: "local",
+      base: `${target}^`,
+      head: target,
+    };
+  }
   return {
     type: "local",
     base: getDefaultBranch(),
@@ -193,5 +200,36 @@ export function getWorkingDirDiffHash(base: string): string {
     return Math.abs(hash).toString(16).padStart(8, "0");
   } catch {
     return "unknown";
+  }
+}
+
+function isLikelyCommitHash(ref: string): boolean {
+  if (!/^[0-9a-f]{7,40}$/i.test(ref)) {
+    return false;
+  }
+  try {
+    execSync(`git show-ref --verify --quiet "refs/heads/${ref}"`, {
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    return false;
+  } catch {
+    // Not a branch
+  }
+  try {
+    execSync(`git show-ref --verify --quiet "refs/tags/${ref}"`, {
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    return false;
+  } catch {
+    // Not a tag
+  }
+  try {
+    execSync(`git rev-parse --verify "${ref}^{commit}"`, {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    return true;
+  } catch {
+    return false;
   }
 }
