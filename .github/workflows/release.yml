@@ -36,7 +36,6 @@ jobs:
 
   build:
     needs: check-version
-    if: needs.check-version.outputs.should_release == 'true'
     strategy:
       matrix:
         include:
@@ -79,6 +78,7 @@ jobs:
 
   release:
     needs: [check-version, build]
+    if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -105,7 +105,7 @@ jobs:
 
             ### Quick Install (macOS/Linux)
             ```bash
-            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/master/install.sh | bash
             ```
 
             ### Manual Download
@@ -122,5 +122,68 @@ jobs:
           files: release/*
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  canary:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare canary assets
+        run: |
+          mkdir -p canary
+          # Move all artifacts to canary folder, flattening the structure
+          find artifacts -type f -exec mv {} canary/ \;
+          ls -la canary/
+
+      - name: Delete existing canary release
+        run: |
+          gh release delete canary --yes || true
+          git push origin :refs/tags/canary || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Canary Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: canary
+          name: Canary Build
+          body: |
+            ## ⚠️ Canary Build
+
+            **This is an automated build from the latest commit on master.**
+            **It may be unstable. For production use, install a [stable release](https://github.com/${{ github.repository }}/releases/latest) instead.**
+
+            ---
+
+            **Commit:** ${{ github.sha }}
+            **Built:** ${{ github.event.head_commit.timestamp }}
+
+            ### Quick Install (macOS/Linux)
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/master/install-canary.sh | bash
+            ```
+
+            ### Manual Download
+            Download the appropriate binary for your platform below and add it to your PATH.
+
+            | Platform | Architecture | Download |
+            |----------|-------------|----------|
+            | macOS | Apple Silicon (M1/M2/M3) | `lgtm-darwin-arm64` |
+            | macOS | Intel | `lgtm-darwin-x64` |
+            | Linux | x64 | `lgtm-linux-x64` |
+            | Linux | ARM64 | `lgtm-linux-arm64` |
+            | Windows | x64 | `lgtm-windows-x64.exe` |
+
+          files: canary/*
+          draft: false
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

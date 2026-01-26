@@ -23,6 +23,14 @@ gh api -H "Accept: application/vnd.github.raw" repos/jamierumbelow/lgtm/contents
 
 This uses your GitHub CLI authentication to fetch the installer and download the latest release binary to `/usr/local/bin`.
 
+### Canary Builds
+
+To install the latest build from master (may be unstable):
+
+```bash
+gh api -H "Accept: application/vnd.github.raw" repos/jamierumbelow/lgtm/contents/install-canary.sh | bash
+```
+
 ### Manual Installation
 
 Download the appropriate binary from [Releases](https://github.com/jamierumbelow/lgtm/releases):
