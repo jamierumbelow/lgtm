@@ -54,23 +54,83 @@ sudo mv lgtm-darwin-arm64 /usr/local/bin/lgtm
 
 - [GitHub CLI](https://cli.github.com/) (`gh`) installed and authenticated
 
+### API Key Setup
+
+`lgtm` uses LLMs to generate detailed analysis. Configure your API key(s) using the interactive config:
+
+```bash
+lgtm config
+```
+
+This stores keys securely in your system keychain. Alternatively, set environment variables:
+
+- `ANTHROPIC_API_KEY` for Claude models
+- `OPENAI_API_KEY` for GPT models
+- `GOOGLE_GENERATIVE_AI_API_KEY` for Gemini models
+
 ## Usage
 
 ```bash
 # Review a GitHub PR
 lgtm https://github.com/org/repo/pull/123
 
-# Review a local branch diff
+# Review a local branch diff (auto-detects base from current branch)
+lgtm
+
+# Review specific branches
 lgtm --base main --head feature/my-branch
+lgtm main...feature/my-branch
 
 # Output formats
-lgtm <pr-url> --format markdown    # default, prints to stdout
-lgtm <pr-url> --format html -o review.html
-lgtm <pr-url> --format json | jq '.changeGroups[]'
+lgtm <target> --format html         # default, opens in browser
+lgtm <target> --format md           # markdown to stdout
+lgtm <target> --format json | jq '.changeGroups[]'
+
+# Save to file instead of stdout/browser
+lgtm <target> --format html -o review.html
+lgtm <target> --format md -o review.md
 
 # Hunt for LLM traces
-lgtm <pr-url> --find-traces --claude-dir ~/.claude
+lgtm <target> --find-traces --claude-dir ~/.claude
+
+# Choose LLM model
+lgtm <target> -m claude-opus-4.5
+lgtm <target> -m gpt-5.2
+lgtm <target> -m gemini-3-flash
+
+# Skip LLM analysis (faster, less detailed)
+lgtm <target> --no-llm
+
+# Bypass cache
+lgtm <target> --fresh
 ```
+
+### Commands
+
+```bash
+lgtm config               # Configure API keys (Anthropic, OpenAI, Gemini)
+lgtm upgrade              # Upgrade to latest version
+lgtm upgrade --canary     # Switch to canary (bleeding edge) builds
+lgtm upgrade --stable     # Switch to stable builds
+lgtm version              # Show detailed version information
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `-b, --base <branch>` | Base branch for local comparison (auto-detected by default) |
+| `-h, --head <branch>` | Head branch for local comparison |
+| `-f, --format <format>` | Output format: `html` (default), `md`, `json` |
+| `-o, --output <file>` | Output file (defaults to browser for html, stdout for md/json) |
+| `-p, --port <port>` | Port for HTML server (default: 3000) |
+| `-m, --model <model>` | LLM model: `claude-sonnet-4.5`, `claude-opus-4.5`, `gpt-5.2`, `gemini-3-flash` |
+| `--no-llm` | Skip LLM-powered analysis |
+| `--find-traces` | Find LLM session traces that generated the changes |
+| `--claude-dir <path>` | Path to Claude Code history (default: `~/.claude`) |
+| `--cursor-dir <path>` | Path to Cursor history directory |
+| `--fresh` | Bypass cache and fetch fresh data |
+| `--verbose` | Enable verbose logging |
 
 ## What it does
 
@@ -100,8 +160,8 @@ Every review answers a consistent set of questions:
 
 When you use `--find-traces`, `lgtm` searches for AI coding sessions that might have generated the changes:
 
-- Claude Code history (`~/.claude/projects/`)
-- Cursor history (`~/.cursor/`) (partial support)
+- Claude Code history (default: `~/.claude/projects/`, customize with `--claude-dir`)
+- Cursor history (specify with `--cursor-dir`)
 
 This helps answer "what was the AI told to do?" — useful for understanding intent behind generated code.
 
@@ -111,24 +171,29 @@ Based on `git blame` and PR review history, `lgtm` suggests who might have conte
 
 ## Output Formats
 
-### Markdown (default)
+### HTML (default)
 
-Clean, readable markdown suitable for pasting into a PR comment or wiki.
-
-### HTML
-
-A static, self-contained webpage with:
+A static, self-contained webpage that opens in your browser with:
 
 - Sidebar navigation
 - Collapsible sections
+- Keyboard navigation (← → or j k)
 - Dark mode (GitHub-style)
+
+### Markdown
+
+Clean, readable markdown suitable for pasting into a PR comment or wiki.
+
+```bash
+lgtm <target> --format md
+```
 
 ### JSON
 
 Machine-readable output for integrating with other tools:
 
 ```bash
-lgtm <pr-url> --format json | jq '.questions[] | select(.id == "failure-modes")'
+lgtm <target> --format json | jq '.questions[] | select(.id == "failure-modes")'
 ```
 
 ## Development
@@ -153,8 +218,8 @@ This creates a wrapper at `/usr/local/bin/lgtm` that runs `bun src/cli.ts`. Any 
 ## Roadmap
 
 - [ ] Tree-sitter integration for better semantic grouping
-- [ ] LLM-powered descriptions and question answers
-- [ ] Cursor SQLite history parsing
+- [x] LLM-powered descriptions and question answers
+- [x] Cursor history support (partial - use `--cursor-dir`)
 - [ ] GitHub Action for automated PR reviews
 - [ ] VSCode extension
 
