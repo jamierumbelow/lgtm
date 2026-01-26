@@ -49,6 +49,7 @@ export interface LLMOptions {
   model?: ModelChoice;
   temperature?: number;
   maxTokens?: number;
+  verbose?: boolean;
 }
 
 export async function generateStructured<T>(
@@ -61,6 +62,7 @@ export async function generateStructured<T>(
     model: requestedModel = DEFAULT_MODEL,
     temperature = 0.2,
     maxTokens = 4096,
+    verbose = false,
   } = options;
   let currentModel = modelOverride ?? requestedModel;
   let modelSpec = getModelSpec(currentModel);
@@ -113,8 +115,10 @@ export async function generateStructured<T>(
         }
 
         rateLimitAttempts += 1;
-        notifyRateLimitWait(modelSpec.modelId, waitSeconds, rateLimitAttempts);
-        await waitWithProgress(waitSeconds);
+        if (verbose) {
+          notifyRateLimitWait(modelSpec.modelId, waitSeconds, rateLimitAttempts);
+        }
+        await waitWithProgress(waitSeconds, verbose);
       } finally {
         releaseGate();
       }
@@ -309,21 +313,27 @@ function notifyRateLimitWait(
   );
 }
 
-function waitWithProgress(waitSeconds: number): Promise<void> {
+function waitWithProgress(waitSeconds: number, verbose = false): Promise<void> {
   const seconds = Math.max(0, Math.round(waitSeconds));
   if (seconds === 0) {
     return Promise.resolve();
   }
 
-  process.stdout.write("[lgtm] waiting");
+  if (verbose) {
+    process.stdout.write("[lgtm] waiting");
+  }
   return new Promise((resolve) => {
     let elapsed = 0;
     const interval = setInterval(() => {
       elapsed += 1;
-      process.stdout.write(".");
+      if (verbose) {
+        process.stdout.write(".");
+      }
       if (elapsed >= seconds) {
         clearInterval(interval);
-        process.stdout.write("\n");
+        if (verbose) {
+          process.stdout.write("\n");
+        }
         resolve();
       }
     }, 1000);
