@@ -73,7 +73,7 @@ get_canary_info() {
 
 # Download and install
 install() {
-    local platform download_url tmp_dir auth_header release_info commit_sha
+    local platform tmp_dir auth_header release_info commit_sha
 
     info "Detecting platform..."
     platform=$(detect_platform)
@@ -100,17 +100,28 @@ Check releases at: https://github.com/${REPO}/releases"
         success "Canary build from commit: ${commit_sha:0:7}"
     fi
 
-    # Construct download URL
+    # Find asset ID for our platform (required for private repo downloads)
     local artifact_name="lgtm-${platform}"
     if [ "$platform" = "windows-x64" ]; then
         artifact_name="${artifact_name}.exe"
     fi
-    download_url="https://github.com/${REPO}/releases/download/${CANARY_TAG}/${artifact_name}"
+    
+    local asset_id
+    asset_id=$(echo "$release_info" | grep -B5 "\"name\": \"${artifact_name}\"" | grep '"id":' | head -1 | sed 's/.*: //;s/,//')
+    
+    if [ -z "$asset_id" ]; then
+        error "Could not find asset '${artifact_name}' in canary release.
+Available assets may not include your platform yet.
+Check releases at: https://github.com/${REPO}/releases/tag/${CANARY_TAG}"
+    fi
 
     # Create temp directory
     tmp_dir=$(mktemp -d)
     trap "rm -rf ${tmp_dir}" EXIT
 
+    # Download via API (required for private repos)
+    local download_url="https://api.github.com/repos/${REPO}/releases/assets/${asset_id}"
+    
     info "Downloading ${artifact_name}..."
     if [ -n "$auth_header" ]; then
         if ! curl -fsSL -H "$auth_header" -H "Accept: application/octet-stream" -L -o "${tmp_dir}/${BINARY_NAME}" "${download_url}"; then

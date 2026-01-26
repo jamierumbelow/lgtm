@@ -55,21 +55,21 @@ detect_platform() {
     echo "${os}-${arch}"
 }
 
-# Get latest release version
-get_latest_version() {
+# Get latest release info
+get_latest_release() {
     local auth_header
     auth_header=$(get_auth_header)
     
     if [ -n "$auth_header" ]; then
-        curl -fsSL -H "$auth_header" "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/'
+        curl -fsSL -H "$auth_header" "https://api.github.com/repos/${REPO}/releases/latest"
     else
-        curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/'
+        curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest"
     fi
 }
 
 # Download and install
 install() {
-    local platform version download_url tmp_dir auth_header
+    local platform version tmp_dir auth_header release_info
 
     info "Detecting platform..."
     platform=$(detect_platform)
@@ -80,30 +80,42 @@ install() {
         info "Using GitHub authentication"
     fi
 
-    info "Fetching latest version..."
-    version=$(get_latest_version)
-    if [ -z "$version" ]; then
+    info "Fetching latest release..."
+    release_info=$(get_latest_release)
+    if [ -z "$release_info" ] || echo "$release_info" | grep -q '"message": "Not Found"'; then
         error "Could not find any releases. Either:
   - No releases have been published yet
   - You don't have access to the repository
 
 Check releases at: https://github.com/${REPO}/releases"
     fi
+    
+    version=$(echo "$release_info" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
     success "Latest version: ${version}"
 
-    # Construct download URL
+    # Find asset ID for our platform (required for private repo downloads)
     local artifact_name="lgtm-${platform}"
     if [ "$platform" = "windows-x64" ]; then
         artifact_name="${artifact_name}.exe"
     fi
-    download_url="https://github.com/${REPO}/releases/download/${version}/${artifact_name}"
+    
+    local asset_id
+    asset_id=$(echo "$release_info" | grep -B5 "\"name\": \"${artifact_name}\"" | grep '"id":' | head -1 | sed 's/.*: //;s/,//')
+    
+    if [ -z "$asset_id" ]; then
+        error "Could not find asset '${artifact_name}' in release ${version}.
+Available assets may not include your platform yet.
+Check releases at: https://github.com/${REPO}/releases/tag/${version}"
+    fi
 
     # Create temp directory
     tmp_dir=$(mktemp -d)
     trap "rm -rf ${tmp_dir}" EXIT
 
+    # Download via API (required for private repos)
+    local download_url="https://api.github.com/repos/${REPO}/releases/assets/${asset_id}"
+
     info "Downloading ${artifact_name}..."
-    local curl_opts="-fsSL -H 'Accept: application/octet-stream'"
     if [ -n "$auth_header" ]; then
         if ! curl -fsSL -H "$auth_header" -H "Accept: application/octet-stream" -L -o "${tmp_dir}/${BINARY_NAME}" "${download_url}"; then
             error "Failed to download. Check your GitHub token has access to releases."
