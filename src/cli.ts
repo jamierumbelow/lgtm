@@ -34,7 +34,7 @@ import {
 import type { ProgressInfo } from "./analysis/analyzer.js";
 import { calculateTokenlensCost } from "./llm/tokenlens.js";
 import { ModelChoice } from "./config.js";
-import { getVersionString, getBuildType, IS_CANARY, COMMIT_SHA } from "./version.js";
+import { getVersionString, getBuildType, IS_CANARY, COMMIT_SHA, BUILD_DATE } from "./version.js";
 
 const program = new Command();
 
@@ -291,6 +291,25 @@ program
       }
       process.exit(1);
     }
+  });
+
+// Version command
+program
+  .command("version")
+  .description("Show detailed version information")
+  .action(() => {
+    console.log();
+    console.log(chalk.bold.magenta("  lgtm"));
+    console.log();
+    console.log(`  Version:    ${getVersionString()}`);
+    console.log(`  Build:      ${getBuildType()}`);
+    if (IS_CANARY && COMMIT_SHA) {
+      console.log(`  Commit:     ${COMMIT_SHA}`);
+    }
+    if (BUILD_DATE) {
+      console.log(`  Built:      ${BUILD_DATE}`);
+    }
+    console.log();
   });
 
 // Main review command
