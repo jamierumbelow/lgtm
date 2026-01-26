@@ -34,7 +34,13 @@ import {
 import type { ProgressInfo } from "./analysis/analyzer.js";
 import { calculateTokenlensCost } from "./llm/tokenlens.js";
 import { ModelChoice } from "./config.js";
-import { getVersionString, getBuildType, IS_CANARY, COMMIT_SHA, BUILD_DATE } from "./version.js";
+import {
+  getVersionString,
+  getBuildType,
+  IS_CANARY,
+  COMMIT_SHA,
+  BUILD_DATE,
+} from "./version.js";
 
 const program = new Command();
 
@@ -225,12 +231,12 @@ program
 
     // Determine which track to use
     let useCanary = IS_CANARY;
-    
+
     if (options.canary && options.stable) {
       console.error(chalk.red("Cannot specify both --canary and --stable"));
       process.exit(1);
     }
-    
+
     if (options.canary) {
       useCanary = true;
     } else if (options.stable) {
@@ -239,11 +245,11 @@ program
 
     const buildType = useCanary ? "canary" : "stable";
     const currentBuildType = getBuildType();
-    
+
     console.log();
     console.log(chalk.bold.magenta("  ⬆  lgtm upgrade"));
     console.log();
-    
+
     // Show current version info
     console.log(chalk.dim("  Current version"));
     console.log(`  ${getVersionString()} (${currentBuildType})`);
@@ -253,7 +259,11 @@ program
     console.log();
 
     if (currentBuildType !== buildType) {
-      console.log(chalk.yellow(`  Switching from ${currentBuildType} to ${buildType} track`));
+      console.log(
+        chalk.yellow(
+          `  Switching from ${currentBuildType} to ${buildType} track`
+        )
+      );
       console.log();
     }
 
@@ -265,10 +275,14 @@ program
 
     try {
       // Use curl to fetch and bash to execute the install script
-      const child = spawn("bash", ["-c", `curl -fsSL "${installScript}" | bash`], {
-        stdio: "inherit",
-        env: { ...process.env },
-      });
+      const child = spawn(
+        "bash",
+        ["-c", `curl -fsSL "${installScript}" | bash`],
+        {
+          stdio: "inherit",
+          env: { ...process.env },
+        }
+      );
 
       await new Promise<void>((resolve, reject) => {
         child.on("close", (code) => {
@@ -359,7 +373,9 @@ program
       if (options.model && !selectedModel) {
         console.error(
           chalk.red(
-            `Invalid model "${options.model}". Valid options: ${validModels.join(", ")}`
+            `Invalid model "${
+              options.model
+            }". Valid options: ${validModels.join(", ")}`
           )
         );
         process.exit(1);
@@ -386,12 +402,12 @@ program
           );
           prData = cached.prData;
 
-          const updateSpinnerWithProgress = (info: ProgressInfo) => {
-            const tokens = getFormattedRunningTotal();
-            spinner.text = `${info.step} (${info.current}/${info.total}) (${tokens} tokens)`;
-          };
+        const updateSpinnerWithProgress = (info: ProgressInfo) => {
+          const tokens = getFormattedRunningTotal();
+          spinner.text = `${info.step} ${chalk.gray(`(${info.current}/${info.total}) (${tokens} tokens)`)}`;
+        };
 
-          spinner.start("Checking for missing analysis...");
+        spinner.start("Checking for missing analysis...");
           const updateResult = await ensureAnalysis(
             prData,
             {
@@ -444,7 +460,7 @@ program
         // Analyze changes
         const updateSpinnerWithProgress = (info: ProgressInfo) => {
           const tokens = getFormattedRunningTotal();
-          spinner.text = `${info.step} (${info.current}/${info.total}) (${tokens} tokens)`;
+          spinner.text = `${info.step} ${chalk.gray(`(${info.current}/${info.total}) (${tokens} tokens)`)}`;
         };
 
         spinner.start("Analyzing changes...");
