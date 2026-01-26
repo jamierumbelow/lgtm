@@ -17,7 +17,6 @@ interface TokenLensModule {
   aliases?: Record<string, string>;
   getUsage?: (...args: any[]) => unknown;
   getTokenCosts?: (...args: any[]) => unknown;
-  estimateCost?: (...args: any[]) => unknown;
 }
 
 function tryCost(
@@ -163,7 +162,7 @@ export async function calculateTokenlensCost(
 
   try {
     const imported = await import("tokenlens");
-    tokenlens = (imported.default ?? imported) as TokenLensModule;
+    tokenlens = imported as unknown as TokenLensModule;
   } catch {
     log?.("[tokenlens] Failed to import tokenlens package.");
     return undefined;

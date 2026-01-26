@@ -1,11 +1,17 @@
-import { mkdirSync, existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
-import { createHash } from 'crypto';
-import { Analysis } from './analysis/analyzer.js';
-import { PRData } from './github/pr.js';
+import {
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+} from "fs";
+import { join } from "path";
+import { homedir } from "os";
+import { createHash } from "crypto";
+import { Analysis } from "./analysis/analyzer.js";
+import { PRData } from "./github/pr.js";
 
-const CACHE_DIR = join(homedir(), '.cache', 'lgtm');
+const CACHE_DIR = join(homedir(), ".cache", "lgtm");
 
 interface CachedData {
   version: number;
@@ -24,7 +30,7 @@ function ensureCacheDir(): void {
 
 function getCacheKey(prUrl: string): string {
   // Create a hash of the PR URL for the filename
-  const hash = createHash('sha256').update(prUrl).digest('hex').slice(0, 16);
+  const hash = createHash("sha256").update(prUrl).digest("hex").slice(0, 16);
   // Also include a readable portion
   const urlParts = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
   if (urlParts) {
@@ -38,7 +44,9 @@ function getCachePath(prUrl: string): string {
   return join(CACHE_DIR, getCacheKey(prUrl));
 }
 
-export function getCached(prUrl: string): { prData: PRData; analysis: Analysis } | null {
+export function getCached(
+  prUrl: string
+): { prData: PRData; analysis: Analysis } | null {
   ensureCacheDir();
   const cachePath = getCachePath(prUrl);
 
@@ -47,10 +55,15 @@ export function getCached(prUrl: string): { prData: PRData; analysis: Analysis }
   }
 
   try {
-    const raw = readFileSync(cachePath, 'utf-8');
+    const raw = readFileSync(cachePath, "utf-8");
     const cached: CachedData = JSON.parse(raw, (key, value) => {
       // Revive Date objects
-      if (key === 'analyzedAt' || key === 'createdAt' || key === 'lastCommitDate' || key === 'timestamp') {
+      if (
+        key === "analyzedAt" ||
+        key === "createdAt" ||
+        key === "lastCommitDate" ||
+        key === "timestamp"
+      ) {
         return new Date(value);
       }
       return value;
@@ -71,7 +84,11 @@ export function getCached(prUrl: string): { prData: PRData; analysis: Analysis }
   }
 }
 
-export function setCache(prUrl: string, prData: PRData, analysis: Analysis): void {
+export function setCache(
+  prUrl: string,
+  prData: PRData,
+  analysis: Analysis
+): void {
   ensureCacheDir();
   const cachePath = getCachePath(prUrl);
 
@@ -82,7 +99,12 @@ export function setCache(prUrl: string, prData: PRData, analysis: Analysis): voi
     analysis,
   };
 
-  writeFileSync(cachePath, JSON.stringify(cached, null, 2));
+  try {
+    writeFileSync(cachePath, JSON.stringify(cached, null, 2));
+  } catch (error) {
+    console.error(`[lgtm] Failed to write cache to ${cachePath}:`, error);
+    throw error;
+  }
 }
 
 export function clearCache(prUrl: string): boolean {
@@ -95,13 +117,17 @@ export function clearCache(prUrl: string): boolean {
   return false;
 }
 
-export function getCacheInfo(prUrl: string): { exists: boolean; path: string; timestamp?: Date } {
+export function getCacheInfo(prUrl: string): {
+  exists: boolean;
+  path: string;
+  timestamp?: Date;
+} {
   const cachePath = getCachePath(prUrl);
   const exists = existsSync(cachePath);
 
   if (exists) {
     try {
-      const raw = readFileSync(cachePath, 'utf-8');
+      const raw = readFileSync(cachePath, "utf-8");
       const cached: CachedData = JSON.parse(raw);
       return {
         exists: true,

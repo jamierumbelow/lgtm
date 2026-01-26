@@ -402,12 +402,14 @@ program
           );
           prData = cached.prData;
 
-        const updateSpinnerWithProgress = (info: ProgressInfo) => {
-          const tokens = getFormattedRunningTotal();
-          spinner.text = `${info.step} ${chalk.gray(`(${info.current}/${info.total}) (${tokens} tokens)`)}`;
-        };
+          const updateSpinnerWithProgress = (info: ProgressInfo) => {
+            const tokens = getFormattedRunningTotal();
+            spinner.text = `${info.step} ${chalk.gray(
+              `(${info.current}/${info.total}) (${tokens} tokens)`
+            )}`;
+          };
 
-        spinner.start("Checking for missing analysis...");
+          spinner.start("Checking for missing analysis...");
           const updateResult = await ensureAnalysis(
             prData,
             {
@@ -460,7 +462,9 @@ program
         // Analyze changes
         const updateSpinnerWithProgress = (info: ProgressInfo) => {
           const tokens = getFormattedRunningTotal();
-          spinner.text = `${info.step} ${chalk.gray(`(${info.current}/${info.total}) (${tokens} tokens)`)}`;
+          spinner.text = `${info.step} ${chalk.gray(
+            `(${info.current}/${info.total}) (${tokens} tokens)`
+          )}`;
         };
 
         spinner.start("Analyzing changes...");
