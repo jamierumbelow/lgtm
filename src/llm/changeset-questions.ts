@@ -8,6 +8,10 @@ import {
   DEFAULT_CHANGESET_QUESTION_CONCURRENCY,
 } from "../config.js";
 import { isLLMExcludedFile } from "./file-filters.js";
+import {
+  getCachedChangesetQuestions,
+  setCachedChangesetQuestions,
+} from "../cache/changesets.js";
 
 export interface ProgressInfo {
   step: string;
@@ -121,6 +125,7 @@ export async function answerChangesetQuestionsWithLLM(
       if (options.onQuestionAnswered) {
         await options.onQuestionAnswered(changeGroups);
       }
+      setCachedChangesetQuestions(group.id, group.reviewQuestions ?? []);
     } catch (error) {
       const message = formatErrorDetails(error);
       console.error(
@@ -148,6 +153,8 @@ function buildChangesetTasks(
       continue;
     }
 
+    hydrateQuestionsFromCache(group);
+
     // Check if any changeset questions need answering
     const unansweredQuestions = group.reviewQuestions.filter(
       (q) =>
@@ -173,6 +180,27 @@ function buildChangesetTasks(
   }
 
   return tasks;
+}
+
+function hydrateQuestionsFromCache(group: ChangeGroup): void {
+  if (!group.reviewQuestions || group.reviewQuestions.length === 0) {
+    return;
+  }
+  const cached = getCachedChangesetQuestions(group.id);
+  if (!cached || cached.length === 0) {
+    return;
+  }
+
+  const cachedById = new Map(cached.map((question) => [question.id, question]));
+  for (const question of group.reviewQuestions) {
+    if (question.answer && question.answer.trim().length > 0) {
+      continue;
+    }
+    const cachedQuestion = cachedById.get(question.id);
+    if (cachedQuestion?.answer && cachedQuestion.answer.trim().length > 0) {
+      question.answer = cachedQuestion.answer;
+    }
+  }
 }
 
 function applyAnswersToGroup(

@@ -6,6 +6,7 @@ import {
   ChangeGroup,
   parseDiff,
 } from "../analysis/chunker.js";
+import { createStableChangeGroupId } from "../analysis/change-id.js";
 import { isLLMExcludedFile, isLockfilePath } from "./file-filters.js";
 
 const ChangesetSchema = z.object({
@@ -157,7 +158,7 @@ function mapToChangeGroups(
     else if (cs.changeType === "types") changeType = "types";
 
     return {
-      id: cs.id || `group-${index}`,
+      id: createStableChangeGroupId({ files: cs.files, hunks }),
       title: cs.title,
       description: cs.description,
       files: cs.files,
@@ -183,7 +184,7 @@ function buildExcludedGroup(excludedDiffs: FileDiff[]): ChangeGroup | null {
   const allLockfiles = files.every((file) => isLockfilePath(file));
 
   return {
-    id: `generated-${files.length}`,
+    id: createStableChangeGroupId({ files, hunks }),
     title: "Generated/lockfiles",
     description: "Diff omitted from LLM prompts.",
     files,

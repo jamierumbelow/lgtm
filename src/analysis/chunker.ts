@@ -1,6 +1,7 @@
 import { PRFile } from "../github/pr.js";
 import type { ReviewQuestion } from "./analyzer.js";
 import { splitChangesetsWithLLM } from "../llm/changeset-splitter.js";
+import { createStableChangeGroupId } from "./change-id.js";
 
 export interface ChunkOptions {
   useLLM?: boolean;
@@ -175,15 +176,19 @@ export function chunkDiffHeuristic(diff: string): ChangeGroup[] {
   }
 
   // Create initial groups by directory
-  let groupId = 0;
   for (const [dir, dirFiles] of byDirectory) {
+    const groupHunks = dirFiles.flatMap((f) =>
+      f.hunks.map((h) => ({ file: f.path, hunk: h }))
+    );
+    const groupFiles = dirFiles.map((f) => f.path);
     const group: ChangeGroup = {
-      id: `group-${groupId++}`,
+      id: createStableChangeGroupId({
+        files: groupFiles,
+        hunks: groupHunks,
+      }),
       title: inferGroupTitle(dir, dirFiles),
-      files: dirFiles.map((f) => f.path),
-      hunks: dirFiles.flatMap((f) =>
-        f.hunks.map((h) => ({ file: f.path, hunk: h }))
-      ),
+      files: groupFiles,
+      hunks: groupHunks,
       changeType: inferChangeType(dirFiles),
       symbolsIntroduced: extractNewSymbols(dirFiles),
       symbolsModified: extractModifiedSymbols(dirFiles),
