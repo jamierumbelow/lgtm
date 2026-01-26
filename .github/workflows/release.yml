@@ -42,18 +42,6 @@ jobs:
           - os: macos-latest
             target: bun-darwin-arm64
             artifact: lgtm-darwin-arm64
-          - os: macos-14
-            target: bun-darwin-x64
-            artifact: lgtm-darwin-x64
-          - os: ubuntu-latest
-            target: bun-linux-x64
-            artifact: lgtm-linux-x64
-          - os: ubuntu-latest
-            target: bun-linux-arm64
-            artifact: lgtm-linux-arm64
-          - os: windows-latest
-            target: bun-windows-x64
-            artifact: lgtm-windows-x64.exe
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -148,10 +136,6 @@ jobs:
             | Platform | Architecture | Download |
             |----------|-------------|----------|
             | macOS | Apple Silicon (M1/M2/M3) | `lgtm-darwin-arm64` |
-            | macOS | Intel | `lgtm-darwin-x64` |
-            | Linux | x64 | `lgtm-linux-x64` |
-            | Linux | ARM64 | `lgtm-linux-arm64` |
-            | Windows | x64 | `lgtm-windows-x64.exe` |
 
           files: release/*
           draft: false
@@ -211,10 +195,6 @@ jobs:
             | Platform | Architecture | Download |
             |----------|-------------|----------|
             | macOS | Apple Silicon (M1/M2/M3) | `lgtm-darwin-arm64` |
-            | macOS | Intel | `lgtm-darwin-x64` |
-            | Linux | x64 | `lgtm-linux-x64` |
-            | Linux | ARM64 | `lgtm-linux-arm64` |
-            | Windows | x64 | `lgtm-windows-x64.exe` |
 
           files: canary/*
           draft: false
