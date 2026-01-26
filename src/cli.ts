@@ -11,6 +11,7 @@ import { renderHTML } from "./output/html.js";
 import { renderJSON } from "./output/json.js";
 import { writeFileSync } from "fs";
 import { createServer } from "http";
+import { randomUUID } from "crypto";
 import {
   setAnthropicApiKey,
   deleteAnthropicApiKey,
@@ -385,11 +386,12 @@ program
             writeFileSync(options.output, html);
             console.log(chalk.green(`\n✓ Review written to ${options.output}`));
           } else {
-            // Start a bun server to serve the HTML
+            // Generate a stable UUID for this report
+            const reportId = randomUUID();
             const port = parseInt(options.port, 10);
-            console.log(
-              chalk.cyan(`\n✨ Starting server at http://localhost:${port}`)
-            );
+            const reportUrl = `http://localhost:${port}/report/${reportId}`;
+
+            console.log(chalk.cyan(`\n✨ Starting server at ${reportUrl}`));
             console.log(
               chalk.gray("Use Overview/Review toggle to switch modes")
             );
@@ -398,22 +400,61 @@ program
             );
             console.log(chalk.gray("Press Ctrl+C to stop\n"));
 
+            // Start the server
             if (typeof Bun !== "undefined" && Bun.serve) {
-              const htmlResponse = new Response(html, {
-                headers: { "Content-Type": "text/html" },
-              });
               Bun.serve({
                 port,
-                fetch() {
-                  return htmlResponse;
+                fetch(req: Request) {
+                  const url = new URL(req.url);
+                  if (url.pathname === `/report/${reportId}`) {
+                    return new Response(html, {
+                      headers: { "Content-Type": "text/html" },
+                    });
+                  }
+                  // Redirect root to the report URL
+                  if (url.pathname === "/") {
+                    return Response.redirect(reportUrl, 302);
+                  }
+                  return new Response("Not Found", { status: 404 });
                 },
               });
+
+              // Open the browser
+              const openCommand =
+                process.platform === "darwin"
+                  ? "open"
+                  : process.platform === "win32"
+                  ? "start"
+                  : "xdg-open";
+              Bun.spawn([openCommand, reportUrl]);
             } else {
               const server = createServer((req, res) => {
-                res.writeHead(200, { "Content-Type": "text/html" });
-                res.end(html);
+                const url = new URL(req.url!, `http://localhost:${port}`);
+                if (url.pathname === `/report/${reportId}`) {
+                  res.writeHead(200, { "Content-Type": "text/html" });
+                  res.end(html);
+                } else if (url.pathname === "/") {
+                  res.writeHead(302, { Location: reportUrl });
+                  res.end();
+                } else {
+                  res.writeHead(404);
+                  res.end("Not Found");
+                }
               });
               server.listen(port);
+
+              // Open the browser using child_process for Node
+              const { spawn } = await import("child_process");
+              const openCommand =
+                process.platform === "darwin"
+                  ? "open"
+                  : process.platform === "win32"
+                  ? "start"
+                  : "xdg-open";
+              spawn(openCommand, [reportUrl], {
+                detached: true,
+                stdio: "ignore",
+              });
             }
 
             await new Promise(() => {}); // Keep running until interrupted
