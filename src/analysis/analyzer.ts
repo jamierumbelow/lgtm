@@ -134,12 +134,6 @@ const CHANGESET_QUESTIONS: Omit<ReviewQuestion, "answer" | "context">[] = [
     question: "What outputs can this produce?",
   },
   {
-    id: "new-symbols",
-    category: "changeset",
-    model: DEFAULT_MODEL,
-    question: "What new symbols are introduced?",
-  },
-  {
     id: "duplication",
     category: "changeset",
     model: DEFAULT_MODEL,

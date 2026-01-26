@@ -6,15 +6,14 @@ Questions to answer:
 1. failure-modes: How can this fail? What's already handled?
 2. input-domain: What inputs does this change handle?
 3. output-range: What outputs can this produce?
-4. new-symbols: What new symbols are introduced?
-5. duplication: Does this add duplication?
-6. abstractions: Do the abstractions make sense?
-7. invariants: What invariants change or are added?
-8. error-handling: Are error paths fully handled?
-9. testing: What tests were added or updated? What's untested?
-10. performance: Any impact on latency, memory, or complexity?
-11. security-privacy: Does this touch sensitive data or trust boundaries?
-12. compatibility: Any behavior or API changes that could break callers?
-13. observability: Do we need new or updated logs, metrics, or traces?
+4. duplication: Does this add duplication?
+5. abstractions: Do the abstractions make sense?
+6. invariants: What invariants change or are added?
+7. error-handling: Are error paths fully handled?
+8. testing: What tests were added or updated? What's untested?
+9. performance: Any impact on latency, memory, or complexity?
+10. security-privacy: Does this touch sensitive data or trust boundaries?
+11. compatibility: Any behavior or API changes that could break callers?
+12. observability: Do we need new or updated logs, metrics, or traces?
 
 Provide your answers in the structured format requested.

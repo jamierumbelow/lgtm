@@ -1672,7 +1672,7 @@ function getRelevantQuestions(
   }
 
   if (group.symbolsIntroduced?.length) {
-    relevant.push("new-symbols", "abstractions");
+    relevant.push("abstractions");
   }
 
   return questions.filter((q) => relevant.includes(q.id)).slice(0, 4);
