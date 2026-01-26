@@ -9,20 +9,12 @@
 ### Quick Install (macOS/Linux)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jamierumbelow/lgtm/main/install.sh | bash
-```
-
-This downloads a single pre-built binary and installs it to `/usr/local/bin`.
-
-### Private Repository Access
-
-If this is a private repo, authenticate first:
-
-```bash
 # Using GitHub CLI (recommended)
 export GITHUB_TOKEN=$(gh auth token)
 curl -fsSL https://raw.githubusercontent.com/jamierumbelow/lgtm/main/install.sh | bash
 ```
+
+This downloads a single pre-built binary and installs it to `/usr/local/bin`.
 
 ### Manual Installation
 
@@ -132,6 +124,16 @@ cd lgtm
 bun install
 bun run dev https://github.com/org/repo/pull/123
 ```
+
+### Global Dev Command
+
+To install a global `lgtm` command that runs the local source code:
+
+```bash
+./install-dev.sh
+```
+
+This creates a wrapper at `/usr/local/bin/lgtm` that runs `bun src/cli.ts`. Any changes you make to the source are immediately reflected.
 
 ## Roadmap
 
