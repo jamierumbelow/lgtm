@@ -1,0 +1,12 @@
+export declare function getAnthropicApiKey(): Promise<string | null>;
+export declare function setAnthropicApiKey(apiKey: string): Promise<void>;
+export declare function deleteAnthropicApiKey(): Promise<boolean>;
+export declare function hasAnthropicApiKey(): Promise<boolean>;
+export declare function getOpenAIApiKey(): Promise<string | null>;
+export declare function setOpenAIApiKey(apiKey: string): Promise<void>;
+export declare function deleteOpenAIApiKey(): Promise<boolean>;
+export declare function hasOpenAIApiKey(): Promise<boolean>;
+export declare function getGoogleApiKey(): Promise<string | null>;
+export declare function setGoogleApiKey(apiKey: string): Promise<void>;
+export declare function deleteGoogleApiKey(): Promise<boolean>;
+export declare function hasGoogleApiKey(): Promise<boolean>;

@@ -34,6 +34,7 @@ import {
 import type { ProgressInfo } from "./analysis/analyzer.js";
 import { calculateTokenlensCost } from "./llm/tokenlens.js";
 import { ModelChoice } from "./config.js";
+import { getVersionString, getBuildType, IS_CANARY, COMMIT_SHA } from "./version.js";
 
 const program = new Command();
 
@@ -42,7 +43,7 @@ program
   .description(
     'Structured PR review companion - because "lgtm" should mean something'
   )
-  .version("0.1.0");
+  .version(getVersionString());
 
 // Helper functions for config TUI
 const getStatusIcon = (hasKey: boolean, hasEnvKey: boolean): string => {
@@ -210,6 +211,86 @@ program
     }
 
     console.log(chalk.dim("\n  Goodbye!\n"));
+  });
+
+// Upgrade command
+program
+  .command("upgrade")
+  .description("Upgrade lgtm to the latest version")
+  .option("--canary", "Switch to canary (bleeding edge) builds")
+  .option("--stable", "Switch to stable builds")
+  .action(async (options) => {
+    const { spawn } = await import("child_process");
+    const spinner = ora();
+
+    // Determine which track to use
+    let useCanary = IS_CANARY;
+    
+    if (options.canary && options.stable) {
+      console.error(chalk.red("Cannot specify both --canary and --stable"));
+      process.exit(1);
+    }
+    
+    if (options.canary) {
+      useCanary = true;
+    } else if (options.stable) {
+      useCanary = false;
+    }
+
+    const buildType = useCanary ? "canary" : "stable";
+    const currentBuildType = getBuildType();
+    
+    console.log();
+    console.log(chalk.bold.magenta("  ⬆  lgtm upgrade"));
+    console.log();
+    
+    // Show current version info
+    console.log(chalk.dim("  Current version"));
+    console.log(`  ${getVersionString()} (${currentBuildType})`);
+    if (IS_CANARY && COMMIT_SHA) {
+      console.log(chalk.dim(`  Commit: ${COMMIT_SHA}`));
+    }
+    console.log();
+
+    if (currentBuildType !== buildType) {
+      console.log(chalk.yellow(`  Switching from ${currentBuildType} to ${buildType} track`));
+      console.log();
+    }
+
+    spinner.start(`Fetching latest ${buildType} release...`);
+
+    const installScript = useCanary
+      ? "https://raw.githubusercontent.com/jamierumbelow/lgtm/master/install-canary.sh"
+      : "https://raw.githubusercontent.com/jamierumbelow/lgtm/master/install.sh";
+
+    try {
+      // Use curl to fetch and bash to execute the install script
+      const child = spawn("bash", ["-c", `curl -fsSL "${installScript}" | bash`], {
+        stdio: "inherit",
+        env: { ...process.env },
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        child.on("close", (code) => {
+          if (code === 0) {
+            spinner.stop();
+            resolve();
+          } else {
+            spinner.fail("Upgrade failed");
+            reject(new Error(`Install script exited with code ${code}`));
+          }
+        });
+        child.on("error", (err) => {
+          spinner.fail("Upgrade failed");
+          reject(err);
+        });
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error(chalk.red(error.message));
+      }
+      process.exit(1);
+    }
   });
 
 // Main review command

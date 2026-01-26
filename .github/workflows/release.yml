@@ -67,6 +67,40 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Inject version info (stable)
+        if: needs.check-version.outputs.should_release == 'true'
+        shell: bash
+        run: |
+          cat > src/version.ts << 'VERSIONEOF'
+          interface BuildInfo { version: string; isCanary: boolean; commitSha: string | null; buildDate: string | null; }
+          VERSIONEOF
+          echo "const buildInfo: BuildInfo = { version: \"${{ needs.check-version.outputs.version }}\", isCanary: false, commitSha: null, buildDate: \"${{ github.event.head_commit.timestamp }}\" };" >> src/version.ts
+          cat >> src/version.ts << 'VERSIONEOF'
+          export const VERSION = buildInfo.version;
+          export const IS_CANARY = buildInfo.isCanary;
+          export const COMMIT_SHA = buildInfo.commitSha;
+          export const BUILD_DATE = buildInfo.buildDate;
+          export const getVersionString = (): string => buildInfo.isCanary && buildInfo.commitSha ? `${buildInfo.version}-canary (${buildInfo.commitSha.slice(0, 7)})` : buildInfo.version;
+          export const getBuildType = (): "canary" | "stable" => buildInfo.isCanary ? "canary" : "stable";
+          VERSIONEOF
+
+      - name: Inject version info (canary)
+        if: needs.check-version.outputs.should_release != 'true'
+        shell: bash
+        run: |
+          cat > src/version.ts << 'VERSIONEOF'
+          interface BuildInfo { version: string; isCanary: boolean; commitSha: string | null; buildDate: string | null; }
+          VERSIONEOF
+          echo "const buildInfo: BuildInfo = { version: \"${{ needs.check-version.outputs.version }}\", isCanary: true, commitSha: \"${{ github.sha }}\", buildDate: \"${{ github.event.head_commit.timestamp }}\" };" >> src/version.ts
+          cat >> src/version.ts << 'VERSIONEOF'
+          export const VERSION = buildInfo.version;
+          export const IS_CANARY = buildInfo.isCanary;
+          export const COMMIT_SHA = buildInfo.commitSha;
+          export const BUILD_DATE = buildInfo.buildDate;
+          export const getVersionString = (): string => buildInfo.isCanary && buildInfo.commitSha ? `${buildInfo.version}-canary (${buildInfo.commitSha.slice(0, 7)})` : buildInfo.version;
+          export const getBuildType = (): "canary" | "stable" => buildInfo.isCanary ? "canary" : "stable";
+          VERSIONEOF
+
       - name: Build executable
         run: bun build ./src/cli.ts --compile --target=${{ matrix.target }} --outfile ${{ matrix.artifact }}
 

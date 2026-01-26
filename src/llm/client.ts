@@ -116,7 +116,11 @@ export async function generateStructured<T>(
 
         rateLimitAttempts += 1;
         if (verbose) {
-          notifyRateLimitWait(modelSpec.modelId, waitSeconds, rateLimitAttempts);
+          notifyRateLimitWait(
+            modelSpec.modelId,
+            waitSeconds,
+            rateLimitAttempts
+          );
         }
         await waitWithProgress(waitSeconds, verbose);
       } finally {
