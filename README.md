@@ -6,14 +6,45 @@
 
 ## Installation
 
+### Quick Install (macOS/Linux)
+
 ```bash
-npm install -g lgtm
-# or
-npx lgtm <pr-url>
+curl -fsSL https://raw.githubusercontent.com/jamierumbelow/lgtm/main/install.sh | bash
 ```
 
-Requires:
-- Node.js 20+
+This downloads a single pre-built binary and installs it to `/usr/local/bin`.
+
+### Private Repository Access
+
+If this is a private repo, authenticate first:
+
+```bash
+# Using GitHub CLI (recommended)
+export GITHUB_TOKEN=$(gh auth token)
+curl -fsSL https://raw.githubusercontent.com/jamierumbelow/lgtm/main/install.sh | bash
+```
+
+### Manual Installation
+
+Download the appropriate binary from [Releases](https://github.com/jamierumbelow/lgtm/releases):
+
+| Platform | Architecture             | Binary                 |
+| -------- | ------------------------ | ---------------------- |
+| macOS    | Apple Silicon (M1/M2/M3) | `lgtm-darwin-arm64`    |
+| macOS    | Intel                    | `lgtm-darwin-x64`      |
+| Linux    | x64                      | `lgtm-linux-x64`       |
+| Linux    | ARM64                    | `lgtm-linux-arm64`     |
+| Windows  | x64                      | `lgtm-windows-x64.exe` |
+
+Then make it executable and move to your PATH:
+
+```bash
+chmod +x lgtm-darwin-arm64
+sudo mv lgtm-darwin-arm64 /usr/local/bin/lgtm
+```
+
+### Requirements
+
 - [GitHub CLI](https://cli.github.com/) (`gh`) installed and authenticated
 
 ## Usage
@@ -39,6 +70,7 @@ lgtm <pr-url> --find-traces --claude-dir ~/.claude
 ### 1. Semantic Change Grouping
 
 Instead of just showing file-by-file diffs, `lgtm` groups changes by logical unit:
+
 - Changes to the same function across multiple files
 - Related test and implementation changes
 - Configuration updates
@@ -73,16 +105,21 @@ Based on `git blame` and PR review history, `lgtm` suggests who might have conte
 ## Output Formats
 
 ### Markdown (default)
+
 Clean, readable markdown suitable for pasting into a PR comment or wiki.
 
 ### HTML
+
 A static, self-contained webpage with:
+
 - Sidebar navigation
 - Collapsible sections
 - Dark mode (GitHub-style)
 
 ### JSON
+
 Machine-readable output for integrating with other tools:
+
 ```bash
 lgtm <pr-url> --format json | jq '.questions[] | select(.id == "failure-modes")'
 ```
@@ -90,10 +127,10 @@ lgtm <pr-url> --format json | jq '.questions[] | select(.id == "failure-modes")'
 ## Development
 
 ```bash
-git clone https://github.com/yourusername/lgtm
+git clone https://github.com/jamierumbelow/lgtm
 cd lgtm
-npm install
-npm run dev -- https://github.com/org/repo/pull/123
+bun install
+bun run dev https://github.com/org/repo/pull/123
 ```
 
 ## Roadmap

@@ -1,0 +1,126 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get package version
+        id: check
+        run: |
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          echo "version=v${PACKAGE_VERSION}" >> $GITHUB_OUTPUT
+          
+          # Check if this tag already exists
+          if git rev-parse "v${PACKAGE_VERSION}" >/dev/null 2>&1; then
+            echo "Version v${PACKAGE_VERSION} already released"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "New version v${PACKAGE_VERSION} detected"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    needs: check-version
+    if: needs.check-version.outputs.should_release == 'true'
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: bun-darwin-arm64
+            artifact: lgtm-darwin-arm64
+          - os: macos-13
+            target: bun-darwin-x64
+            artifact: lgtm-darwin-x64
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            artifact: lgtm-linux-x64
+          - os: ubuntu-latest
+            target: bun-linux-arm64
+            artifact: lgtm-linux-arm64
+          - os: windows-latest
+            target: bun-windows-x64
+            artifact: lgtm-windows-x64.exe
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build executable
+        run: bun build ./src/cli.ts --compile --target=${{ matrix.target }} --outfile ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: [check-version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          # Move all artifacts to release folder, flattening the structure
+          find artifacts -type f -exec mv {} release/ \;
+          ls -la release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.check-version.outputs.version }}
+          name: Release ${{ needs.check-version.outputs.version }}
+          body: |
+            ## Installation
+
+            ### Quick Install (macOS/Linux)
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
+            ```
+
+            ### Manual Download
+            Download the appropriate binary for your platform below and add it to your PATH.
+
+            | Platform | Architecture | Download |
+            |----------|-------------|----------|
+            | macOS | Apple Silicon (M1/M2/M3) | `lgtm-darwin-arm64` |
+            | macOS | Intel | `lgtm-darwin-x64` |
+            | Linux | x64 | `lgtm-linux-x64` |
+            | Linux | ARM64 | `lgtm-linux-arm64` |
+            | Windows | x64 | `lgtm-windows-x64.exe` |
+
+          files: release/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
