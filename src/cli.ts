@@ -421,6 +421,12 @@ program
                 ? (partialAnalysis) => setCache(prUrl, prData!, partialAnalysis)
                 : undefined,
               onStepProgress: updateSpinnerWithProgress,
+              onChangesetsCreated: (count) => {
+                spinner.succeed(
+                  `Broken PR into ${count} changeset${count === 1 ? "" : "s"}`
+                );
+                spinner.start("Answering review questions...");
+              },
             },
             cached.analysis
           );
@@ -476,10 +482,18 @@ program
             ? (partialAnalysis) => setCache(prUrl, prData!, partialAnalysis)
             : undefined,
           onStepProgress: updateSpinnerWithProgress,
+          onChangesetsCreated: (count) => {
+            spinner.succeed(
+              `Broken PR into ${count} changeset${count === 1 ? "" : "s"}`
+            );
+            spinner.start("Answering review questions...");
+          },
         });
         const finalTokens = getFormattedRunningTotal();
         spinner.succeed(
-          `Analyzed ${analysis.changeGroups.length} change groups across ${analysis.filesChanged} files (${finalTokens} tokens)`
+          `Analyzed ${analysis.changeGroups.length} changeset${
+            analysis.changeGroups.length === 1 ? "" : "s"
+          } across ${analysis.filesChanged} files (${finalTokens} tokens)`
         );
 
         // Find LLM traces if requested
@@ -542,8 +556,10 @@ program
             console.log(chalk.gray("Press Ctrl+C to stop\n"));
 
             // Start the server
+            let cleanup: () => void;
+
             if (typeof Bun !== "undefined" && Bun.serve) {
-              Bun.serve({
+              const server = Bun.serve({
                 port,
                 fetch(req: Request) {
                   const url = new URL(req.url);
@@ -559,6 +575,8 @@ program
                   return new Response("Not Found", { status: 404 });
                 },
               });
+
+              cleanup = () => server.stop();
 
               // Open the browser
               const openCommand =
@@ -584,6 +602,8 @@ program
               });
               server.listen(port);
 
+              cleanup = () => server.close();
+
               // Open the browser using child_process for Node
               const { spawn } = await import("child_process");
               const openCommand =
@@ -598,7 +618,16 @@ program
               });
             }
 
-            await new Promise(() => {}); // Keep running until interrupted
+            // Handle Ctrl+C gracefully
+            await new Promise<void>((resolve) => {
+              const handleSignal = () => {
+                console.log(chalk.gray("\n\nShutting down server..."));
+                cleanup();
+                resolve();
+              };
+              process.on("SIGINT", handleSignal);
+              process.on("SIGTERM", handleSignal);
+            });
           }
           break;
         }

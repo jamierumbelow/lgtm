@@ -60,6 +60,7 @@ interface AnalyzeOptions {
   model?: ModelChoice;
   onProgress?: (analysis: Analysis) => void | Promise<void>;
   onStepProgress?: (info: ProgressInfo) => void;
+  onChangesetsCreated?: (count: number) => void;
 }
 
 export type { ProgressInfo };
@@ -235,6 +236,12 @@ export async function analyzeChanges(
 ): Promise<Analysis> {
   const { additions, deletions } = calculateStats(prData);
   const changeGroups = await buildChangeGroups(prData, options);
+
+  // Notify that changesets have been created
+  if (options.onChangesetsCreated) {
+    options.onChangesetsCreated(changeGroups.length);
+  }
+
   const changesetQuestionsResult = buildChangesetQuestions(changeGroups);
   let changeGroupsWithQuestions = changesetQuestionsResult.changeGroups;
   const contributors = await buildContributors(prData);
@@ -310,6 +317,12 @@ export async function ensureAnalysis(
   const changeGroups = missing.needsChangeGroups
     ? await buildChangeGroups(prData, options)
     : existing.changeGroups;
+
+  // Notify that changesets have been created (even from cache, for consistency)
+  if (options.onChangesetsCreated) {
+    options.onChangesetsCreated(changeGroups.length);
+  }
+
   const contributors = missing.needsContributors
     ? await buildContributors(prData)
     : existing.contributors;
