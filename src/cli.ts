@@ -351,7 +351,7 @@ program
     "-o, --output <file>",
     "Output file (defaults to stdout for md/json, server for html)"
   )
-  .option("-p, --port <port>", "Port for HTML server", "3000")
+  .option("-p, --port <port>", "Port for HTML server", "48721")
   .option(
     "--find-traces",
     "Attempt to find LLM session traces that generated the changes"
