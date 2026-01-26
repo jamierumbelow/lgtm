@@ -33,6 +33,7 @@ import {
 } from "./llm/usage.js";
 import type { ProgressInfo } from "./analysis/analyzer.js";
 import { calculateTokenlensCost } from "./llm/tokenlens.js";
+import { ModelChoice } from "./config.js";
 
 const program = new Command();
 
@@ -236,6 +237,10 @@ program
   )
   .option("--cursor-dir <path>", "Path to Cursor history directory")
   .option("--no-llm", "Skip LLM-powered analysis (descriptions, questions)")
+  .option(
+    "-m, --model <model>",
+    "LLM model: claude-sonnet-4.5, claude-opus-4.5, gpt-5.2, gemini-3-flash"
+  )
   .option("--verbose", "Enable verbose logging")
   .option("--fresh", "Bypass cache and fetch fresh data")
   .action(async (prUrl, options) => {
@@ -244,6 +249,22 @@ program
     resetLLMUsage();
 
     try {
+      // Validate model option
+      const validModels = Object.values(ModelChoice);
+      const selectedModel = options.model
+        ? (validModels.find((m) => m === options.model) as
+            | ModelChoice
+            | undefined)
+        : undefined;
+      if (options.model && !selectedModel) {
+        console.error(
+          chalk.red(
+            `Invalid model "${options.model}". Valid options: ${validModels.join(", ")}`
+          )
+        );
+        process.exit(1);
+      }
+
       // Determine source: PR URL or local branches
       if (!prUrl && !options.head) {
         console.error(
@@ -279,6 +300,7 @@ program
               useLLM: options.llm !== false,
               includeTraces: options.findTraces,
               verbose: options.verbose,
+              model: selectedModel,
               onProgress: prUrl
                 ? (partialAnalysis) => setCache(prUrl, prData!, partialAnalysis)
                 : undefined,
@@ -331,6 +353,7 @@ program
         analysis = await analyzeChanges(prData, {
           useLLM: options.llm !== false,
           verbose: options.verbose,
+          model: selectedModel,
           onProgress: prUrl
             ? (partialAnalysis) => setCache(prUrl, prData!, partialAnalysis)
             : undefined,

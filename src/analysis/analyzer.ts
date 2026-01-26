@@ -57,6 +57,7 @@ interface AnalyzeOptions {
   useLLM: boolean;
   includeTraces?: boolean;
   verbose?: boolean;
+  model?: ModelChoice;
   onProgress?: (analysis: Analysis) => void | Promise<void>;
   onStepProgress?: (info: ProgressInfo) => void;
 }
@@ -268,6 +269,7 @@ export async function analyzeChanges(
       changeGroupsWithQuestions,
       {
         verbose: options.verbose,
+        model: options.model,
         onQuestionAnswered: options.onProgress
           ? (groups) => options.onProgress!(buildPartialAnalysis(groups))
           : undefined,
@@ -356,6 +358,7 @@ export async function ensureAnalysis(
       changeGroupsWithQuestions,
       {
         verbose: options.verbose,
+        model: options.model,
         onQuestionAnswered: options.onProgress
           ? (groups) => options.onProgress!(buildPartialAnalysis(groups))
           : undefined,
