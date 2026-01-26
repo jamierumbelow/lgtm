@@ -547,12 +547,7 @@ program
             const reportUrl = `http://localhost:${port}/report/${reportId}`;
 
             console.log(chalk.cyan(`\n✨ Starting server at ${reportUrl}`));
-            console.log(
-              chalk.gray("Use Overview/Review toggle to switch modes")
-            );
-            console.log(
-              chalk.gray("In Review mode: ← → or j k to navigate, Esc to exit")
-            );
+            console.log(chalk.gray("Use ← → or j k to navigate"));
             console.log(chalk.gray("Press Ctrl+C to stop\n"));
 
             // Start the server

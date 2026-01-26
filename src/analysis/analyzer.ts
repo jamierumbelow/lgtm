@@ -8,7 +8,7 @@ import {
 } from "../llm/changeset-questions.js";
 import { ModelChoice, DEFAULT_MODEL } from "../config.js";
 
-export type ReviewQuestionCategory = "overview" | "changeset";
+export type ReviewQuestionCategory = "changeset";
 
 export interface ReviewQuestion {
   id: string;
@@ -89,33 +89,6 @@ export interface AnalysisUpdateResult {
 
 export const ANALYSIS_SHAPE_VERSION = 1;
 
-const OVERVIEW_QUESTIONS: Omit<ReviewQuestion, "answer" | "context">[] = [
-  {
-    id: "decomposition",
-    category: "overview",
-    model: DEFAULT_MODEL,
-    question: "Could this be split into smaller PRs?",
-  },
-  {
-    id: "external-deps",
-    category: "overview",
-    model: DEFAULT_MODEL,
-    question: "Which external systems does this rely on?",
-  },
-  {
-    id: "reviewers",
-    category: "overview",
-    model: DEFAULT_MODEL,
-    question: "Who has context to review this?",
-  },
-  {
-    id: "rollback",
-    category: "overview",
-    model: DEFAULT_MODEL,
-    question: "How would we roll this back if it breaks?",
-  },
-];
-
 const CHANGESET_QUESTIONS: Omit<ReviewQuestion, "answer" | "context">[] = [
   {
     id: "failure-modes",
@@ -190,7 +163,7 @@ export function getAnalysisShape(
 ): AnalysisShape {
   return {
     version: ANALYSIS_SHAPE_VERSION,
-    requiredQuestionIds: OVERVIEW_QUESTIONS.map((question) => question.id),
+    requiredQuestionIds: [],
     requireTraces: options.includeTraces ?? false,
   };
 }
@@ -284,13 +257,6 @@ export async function analyzeChanges(
       }
     );
     changeGroupsWithQuestions = answeredChangesets.changeGroups;
-  }
-
-  if (options.useLLM) {
-    // TODO: Call LLM to generate:
-    // - Plain English descriptions for each changeGroup
-    // - Answers to each overview question
-    // This would use the describer module
   }
 
   return buildPartialAnalysis(changeGroupsWithQuestions);
@@ -446,78 +412,17 @@ function buildSuggestedReviewers(
 }
 
 function buildQuestions(
-  prData: PRData,
-  changeGroups: ChangeGroup[],
-  contributors: FileContributor[],
+  _prData: PRData,
+  _changeGroups: ChangeGroup[],
+  _contributors: FileContributor[],
   existingQuestions: ReviewQuestion[] = []
 ): { questions: ReviewQuestion[]; updated: boolean; questionIds: Set<string> } {
-  const existingById = new Map(
-    existingQuestions.map((question) => [question.id, question])
+  // No overview questions - all questions are now per-changeset
+  const questions = existingQuestions.filter(
+    (question) => question.category === "changeset"
   );
-  let updated = false;
-  const standardQuestions = OVERVIEW_QUESTIONS.map((question) => {
-    const existing = existingById.get(question.id);
-    const context = getQuestionContext(
-      question.id,
-      prData,
-      changeGroups,
-      contributors
-    );
-    if (!existing) {
-      updated = true;
-      return {
-        ...question,
-        answer: undefined,
-        context,
-      };
-    }
-    if (existing.question !== question.question) {
-      updated = true;
-    }
-    if (existing.category !== question.category) {
-      updated = true;
-    }
-    if (!existing.context || existing.context.length === 0) {
-      updated = true;
-    }
-    return {
-      ...existing,
-      id: question.id,
-      question: question.question,
-      category: question.category,
-      model: existing.model ?? question.model ?? DEFAULT_MODEL,
-      context:
-        existing.context && existing.context.length > 0
-          ? existing.context
-          : context,
-    };
-  });
-
-  const standardIds = new Set(
-    OVERVIEW_QUESTIONS.map((question) => question.id)
-  );
-  const extraQuestions: ReviewQuestion[] = existingQuestions
-    .filter(
-      (question) =>
-        !standardIds.has(question.id) && question.category !== "changeset"
-    )
-    .map((question): ReviewQuestion => {
-      const normalized = {
-        ...question,
-        model: question.model ?? DEFAULT_MODEL,
-      };
-      if (normalized.category) {
-        return normalized;
-      }
-      updated = true;
-      return { ...normalized, category: "overview" };
-    });
-
-  const questions = [...standardQuestions, ...extraQuestions];
   const questionIds = new Set(questions.map((question) => question.id));
-  if (questions.length !== existingQuestions.length) {
-    updated = true;
-  }
+  const updated = questions.length !== existingQuestions.length;
 
   return { questions, updated, questionIds };
 }
@@ -576,42 +481,3 @@ function buildChangesetQuestions(
   return { changeGroups: updatedGroups, updated };
 }
 
-function getQuestionContext(
-  questionId: string,
-  prData: PRData,
-  changeGroups: ChangeGroup[],
-  contributors: FileContributor[]
-): string {
-  switch (questionId) {
-    case "reviewers":
-      return contributors
-        .slice(0, 5)
-        .map(
-          (c) => `${c.name} (${c.linesAuthored} lines, ${c.commits} commits)`
-        )
-        .join("\n");
-
-    case "new-symbols":
-      return (
-        changeGroups.flatMap((g) => g.symbolsIntroduced || []).join(", ") ||
-        "Analysis pending..."
-      );
-
-    case "decomposition":
-      const filesByDir = new Map<string, string[]>();
-      for (const file of prData.files) {
-        const dir = file.path.split("/").slice(0, -1).join("/") || ".";
-        if (!filesByDir.has(dir)) filesByDir.set(dir, []);
-        filesByDir.get(dir)!.push(file.path);
-      }
-      return (
-        `Changes span ${filesByDir.size} directories:\n` +
-        Array.from(filesByDir.entries())
-          .map(([dir, files]) => `  ${dir}/ (${files.length} files)`)
-          .join("\n")
-      );
-
-    default:
-      return "";
-  }
-}
