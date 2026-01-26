@@ -8,9 +8,28 @@ import {
   DEFAULT_CHANGESET_QUESTION_CONCURRENCY,
 } from "../config.js";
 
-const AnswerSchema = z.object({
-  answer: z.string(),
+// Schema for batched question answers - all 13 questions answered at once
+const BatchedAnswersSchema = z.object({
+  "failure-modes": z.string(),
+  "input-domain": z.string(),
+  "output-range": z.string(),
+  "new-symbols": z.string(),
+  duplication: z.string(),
+  abstractions: z.string(),
+  invariants: z.string(),
+  "error-handling": z.string(),
+  testing: z.string(),
+  performance: z.string(),
+  "security-privacy": z.string(),
+  compatibility: z.string(),
+  observability: z.string(),
 });
+
+type BatchedAnswers = z.infer<typeof BatchedAnswersSchema>;
+
+const BATCHED_QUESTION_IDS = Object.keys(
+  BatchedAnswersSchema.shape
+) as (keyof BatchedAnswers)[];
 
 export async function answerChangesetQuestionsWithLLM(
   changeGroups: ChangeGroup[],
@@ -30,68 +49,67 @@ export async function answerChangesetQuestionsWithLLM(
     Number(options.maxConcurrent ?? DEFAULT_CHANGESET_QUESTION_CONCURRENCY)
   );
 
-  const tasks = buildQuestionTasks(changeGroups, log);
+  const tasks = buildChangesetTasks(changeGroups, log);
   if (tasks.length === 0) {
     return { changeGroups, updated };
   }
 
   log?.(
-    `[lgtm] processing ${tasks.length} questions (parallel=${maxConcurrent})`
+    `[lgtm] processing ${tasks.length} changesets (parallel=${maxConcurrent})`
   );
 
-  await runWithConcurrency(
-    tasks,
-    maxConcurrent,
-    async ({ group, question }) => {
-      const effectiveModel = question.model ?? options.model ?? DEFAULT_MODEL;
-      try {
-        log?.(`[lgtm] answering ${question.id} for "${group.title}"`);
-        const systemPrompt = loadPrompt(
-          `review-questions/${question.id}.v1.txt`,
-          effectiveModel
-        );
-        const userPrompt = buildUserPrompt(group, question);
+  await runWithConcurrency(tasks, maxConcurrent, async ({ group }) => {
+    const effectiveModel = options.model ?? DEFAULT_MODEL;
+    try {
+      log?.(
+        `[lgtm] answering all questions for "${group.title}" in single call`
+      );
+      const systemPrompt = loadPrompt(
+        "review-questions/batched.v1.txt",
+        effectiveModel
+      );
+      const userPrompt = buildUserPrompt(group);
 
-        const response = await generateStructured(
-          systemPrompt,
-          userPrompt,
-          AnswerSchema,
-          {
-            temperature: 0.2,
-            maxTokens: 512,
-            ...options,
-            model: effectiveModel,
-          }
-        );
-
-        question.answer = response.answer.trim();
-        updated = true;
-        log?.(`[lgtm] answered ${question.id} for "${group.title}"`);
-
-        // Persist to cache immediately after answering
-        if (options.onQuestionAnswered) {
-          await options.onQuestionAnswered(changeGroups);
+      const answers = await generateStructured(
+        systemPrompt,
+        userPrompt,
+        BatchedAnswersSchema,
+        {
+          temperature: 0.2,
+          maxTokens: 2048,
+          ...options,
+          model: effectiveModel,
         }
-      } catch (error) {
-        const message = formatErrorDetails(error);
-        console.error(
-          `[lgtm] failed ${question.id} for "${group.title}"`,
-          `model=${effectiveModel}`,
-          message
-        );
-        throw error;
+      );
+
+      // Apply answers to the corresponding questions
+      applyAnswersToGroup(group, answers);
+      updated = true;
+      log?.(`[lgtm] answered all questions for "${group.title}"`);
+
+      // Persist to cache immediately after answering
+      if (options.onQuestionAnswered) {
+        await options.onQuestionAnswered(changeGroups);
       }
+    } catch (error) {
+      const message = formatErrorDetails(error);
+      console.error(
+        `[lgtm] failed answering questions for "${group.title}"`,
+        `model=${effectiveModel}`,
+        message
+      );
+      throw error;
     }
-  );
+  });
 
   return { changeGroups, updated };
 }
 
-function buildQuestionTasks(
+function buildChangesetTasks(
   changeGroups: ChangeGroup[],
   log?: (message: string) => void
-): Array<{ group: ChangeGroup; question: ReviewQuestion }> {
-  const tasks: Array<{ group: ChangeGroup; question: ReviewQuestion }> = [];
+): Array<{ group: ChangeGroup }> {
+  const tasks: Array<{ group: ChangeGroup }> = [];
 
   for (const group of changeGroups) {
     if (!group.reviewQuestions || group.reviewQuestions.length === 0) {
@@ -99,25 +117,43 @@ function buildQuestionTasks(
       continue;
     }
 
-    log?.(
-      `[lgtm] changeset "${group.title}" (${group.reviewQuestions.length} questions)`
+    // Check if any changeset questions need answering
+    const unansweredQuestions = group.reviewQuestions.filter(
+      (q) =>
+        q.category === "changeset" &&
+        BATCHED_QUESTION_IDS.includes(q.id as keyof BatchedAnswers) &&
+        (!q.answer || q.answer.trim().length === 0)
     );
 
-    for (const question of group.reviewQuestions) {
-      if (question.category !== "changeset") {
-        continue;
-      }
-      if (question.answer && question.answer.trim().length > 0) {
-        log?.(
-          `[lgtm] skipping ${question.id} for "${group.title}" (already answered)`
-        );
-        continue;
-      }
-      tasks.push({ group, question });
+    if (unansweredQuestions.length === 0) {
+      log?.(
+        `[lgtm] skipping changeset "${group.title}" (all questions answered)`
+      );
+      continue;
     }
+
+    log?.(
+      `[lgtm] changeset "${group.title}" (${unansweredQuestions.length} unanswered questions)`
+    );
+    tasks.push({ group });
   }
 
   return tasks;
+}
+
+function applyAnswersToGroup(
+  group: ChangeGroup,
+  answers: BatchedAnswers
+): void {
+  if (!group.reviewQuestions) return;
+
+  for (const question of group.reviewQuestions) {
+    if (question.category !== "changeset") continue;
+    const questionId = question.id as keyof BatchedAnswers;
+    if (questionId in answers) {
+      question.answer = answers[questionId].trim();
+    }
+  }
 }
 
 async function runWithConcurrency<T>(
@@ -192,7 +228,7 @@ function extractErrorExtras(error: Error): string | undefined {
   return `Details: ${inspect(extras, { depth: 5, breakLength: 120 })}`;
 }
 
-function buildUserPrompt(group: ChangeGroup, question: ReviewQuestion): string {
+function buildUserPrompt(group: ChangeGroup): string {
   const fileList = group.files.map((file) => `- ${file}`).join("\n");
   const hunks = group.hunks
     .map(
@@ -211,10 +247,7 @@ function buildUserPrompt(group: ChangeGroup, question: ReviewQuestion): string {
     ? `\nModified symbols: ${group.symbolsModified.join(", ")}`
     : "";
 
-  return `## Question
-${question.question}
-
-## Changeset
+  return `## Changeset
 Title: ${group.title}
 Type: ${group.changeType}${description}${symbolsIntroduced}${symbolsModified}
 
