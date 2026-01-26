@@ -619,15 +619,29 @@ program
             }
 
             // Handle Ctrl+C gracefully
-            await new Promise<void>((resolve) => {
-              const handleSignal = () => {
-                console.log(chalk.gray("\n\nShutting down server..."));
-                cleanup();
-                resolve();
-              };
-              process.on("SIGINT", handleSignal);
-              process.on("SIGTERM", handleSignal);
-            });
+            const shutdown = () => {
+              console.log(chalk.gray("\n\nShutting down server..."));
+              cleanup();
+              process.exit(0);
+            };
+
+            process.on("SIGINT", shutdown);
+            process.on("SIGTERM", shutdown);
+
+            // Also listen for stdin close (backup for signal issues)
+            if (process.stdin.isTTY) {
+              process.stdin.setRawMode(true);
+              process.stdin.resume();
+              process.stdin.on("data", (data) => {
+                // Ctrl+C is 0x03
+                if (data[0] === 0x03) {
+                  shutdown();
+                }
+              });
+            }
+
+            // Keep the process alive until signal
+            await new Promise(() => {});
           }
           break;
         }
