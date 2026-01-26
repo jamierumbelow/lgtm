@@ -7,6 +7,7 @@ import {
   DEFAULT_MODEL,
   DEFAULT_CHANGESET_QUESTION_CONCURRENCY,
 } from "../config.js";
+import { isLLMExcludedFile } from "./file-filters.js";
 
 export interface ProgressInfo {
   step: string;
@@ -251,7 +252,9 @@ function extractErrorExtras(error: Error): string | undefined {
 
 function buildUserPrompt(group: ChangeGroup): string {
   const fileList = group.files.map((file) => `- ${file}`).join("\n");
+  const excludedFiles = group.files.filter((file) => isLLMExcludedFile(file));
   const hunks = group.hunks
+    .filter(({ file }) => !isLLMExcludedFile(file))
     .map(
       ({ file, hunk }, index) =>
         `### ${file} (Hunk ${index})\n@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@ ${hunk.header}\n${hunk.content}`
@@ -267,10 +270,13 @@ function buildUserPrompt(group: ChangeGroup): string {
   const symbolsModified = group.symbolsModified?.length
     ? `\nModified symbols: ${group.symbolsModified.join(", ")}`
     : "";
+  const excludedNote = excludedFiles.length
+    ? `\nExcluded (generated/lockfiles): ${excludedFiles.join(", ")}`
+    : "";
 
   return `## Changeset
 Title: ${group.title}
-Type: ${group.changeType}${description}${symbolsIntroduced}${symbolsModified}
+Type: ${group.changeType}${description}${symbolsIntroduced}${symbolsModified}${excludedNote}
 
 Files:
 ${fileList}

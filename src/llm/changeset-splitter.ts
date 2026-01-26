@@ -6,6 +6,7 @@ import {
   ChangeGroup,
   parseDiff,
 } from "../analysis/chunker.js";
+import { isLLMExcludedFile, isLockfilePath } from "./file-filters.js";
 
 const ChangesetSchema = z.object({
   id: z.string(),
@@ -40,8 +41,15 @@ export async function splitChangesetsWithLLM(
     return [];
   }
 
+  const [eligibleDiffs, excludedDiffs] = partitionFileDiffs(fileDiffs);
+
+  const excludedGroup = buildExcludedGroup(excludedDiffs);
+  if (eligibleDiffs.length === 0) {
+    return excludedGroup ? [excludedGroup] : [];
+  }
+
   const systemPrompt = loadPrompt("changeset-split/changeset-split.v1.txt");
-  const userPrompt = buildUserPrompt(fileDiffs);
+  const userPrompt = buildUserPrompt(fileDiffs, excludedDiffs);
 
   const response = await generateStructured(
     systemPrompt,
@@ -50,14 +58,25 @@ export async function splitChangesetsWithLLM(
     { temperature: 0.1 }
   );
 
-  return mapToChangeGroups(response.changesets, fileDiffs);
+  const changeGroups = mapToChangeGroups(response.changesets, eligibleDiffs);
+  if (excludedGroup) {
+    changeGroups.push(excludedGroup);
+  }
+  return changeGroups;
 }
 
-function buildUserPrompt(fileDiffs: FileDiff[]): string {
+function buildUserPrompt(
+  fileDiffs: FileDiff[],
+  excludedDiffs: FileDiff[]
+): string {
   const fileList = fileDiffs.map((f) => `- ${f.path} (${f.status})`).join("\n");
+  const excludedFiles = excludedDiffs.map((f) => f.path);
 
   let diffContent = "";
   for (const file of fileDiffs) {
+    if (excludedFiles.includes(file.path)) {
+      continue;
+    }
     diffContent += `\n=== ${file.path} ===\n`;
     file.hunks.forEach((hunk, i) => {
       diffContent += `\n[Hunk ${i}] @@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@ ${hunk.header}\n`;
@@ -65,15 +84,39 @@ function buildUserPrompt(fileDiffs: FileDiff[]): string {
     });
   }
 
+  const excludedNote = excludedFiles.length
+    ? `\n## Diff Omitted (generated or lockfiles)\n\n${excludedFiles
+        .map((file) => `- ${file}`)
+        .join("\n")}\n`
+    : "";
+
   return `## Files Changed
 
 ${fileList}
 
+${excludedNote}
 ## Unified Diff
 
 ${diffContent}
 
 Please analyze this diff and split it into logical changesets.`;
+}
+
+function partitionFileDiffs(
+  fileDiffs: FileDiff[]
+): [FileDiff[], FileDiff[]] {
+  const eligible: FileDiff[] = [];
+  const excluded: FileDiff[] = [];
+
+  for (const fileDiff of fileDiffs) {
+    if (isLLMExcludedFile(fileDiff.path)) {
+      excluded.push(fileDiff);
+    } else {
+      eligible.push(fileDiff);
+    }
+  }
+
+  return [eligible, excluded];
 }
 
 function mapToChangeGroups(
@@ -124,6 +167,31 @@ function mapToChangeGroups(
       symbolsModified,
     };
   });
+}
+
+function buildExcludedGroup(excludedDiffs: FileDiff[]): ChangeGroup | null {
+  if (excludedDiffs.length === 0) {
+    return null;
+  }
+
+  const files = excludedDiffs.map((f) => f.path);
+  const hunks = excludedDiffs.flatMap((file) =>
+    file.hunks.map((hunk) => ({ file: file.path, hunk }))
+  );
+  const symbolsIntroduced = extractNewSymbols(hunks);
+  const symbolsModified = extractModifiedSymbols(hunks);
+  const allLockfiles = files.every((file) => isLockfilePath(file));
+
+  return {
+    id: `generated-${files.length}`,
+    title: "Generated/lockfiles",
+    description: "Diff omitted from LLM prompts.",
+    files,
+    hunks,
+    changeType: allLockfiles ? "config" : "unknown",
+    symbolsIntroduced,
+    symbolsModified,
+  };
 }
 
 function extractNewSymbols(
