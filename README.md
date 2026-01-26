@@ -9,10 +9,10 @@
 ### Quick Install (macOS/Linux)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jamierumbelow/lgtm/main/install.sh | bash
+gh api -H "Accept: application/vnd.github.raw" repos/jamierumbelow/lgtm/contents/install.sh | bash
 ```
 
-This downloads a single pre-built binary and installs it to `/usr/local/bin`. The script automatically uses your GitHub CLI authentication if available.
+This uses your GitHub CLI authentication to fetch the installer and download the latest release binary to `/usr/local/bin`.
 
 ### Manual Installation
 

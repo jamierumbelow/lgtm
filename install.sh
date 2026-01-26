@@ -2,11 +2,9 @@
 set -e
 
 # lgtm installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/jamierumbelow/lgtm/main/install.sh | bash
+# Usage: gh api -H "Accept: application/vnd.github.raw" repos/jamierumbelow/lgtm/contents/install.sh | bash
 #
-# For private repos, set GITHUB_TOKEN first:
-#   export GITHUB_TOKEN=$(gh auth token)
-#   curl -fsSL ... | bash
+# Uses your `gh` CLI authentication to download releases from the private repo.
 
 REPO="jamierumbelow/lgtm"
 INSTALL_DIR="${LGTM_INSTALL_DIR:-/usr/local/bin}"
@@ -85,12 +83,11 @@ install() {
     info "Fetching latest version..."
     version=$(get_latest_version)
     if [ -z "$version" ]; then
-        error "Could not determine latest version. Make sure you have access to the repository.
+        error "Could not find any releases. Either:
+  - No releases have been published yet
+  - You don't have access to the repository
 
-For private repos, authenticate with:
-  export GITHUB_TOKEN=\$(gh auth token)
-
-Then run this script again."
+Check releases at: https://github.com/${REPO}/releases"
     fi
     success "Latest version: ${version}"
 
