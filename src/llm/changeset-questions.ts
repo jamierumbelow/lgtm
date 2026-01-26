@@ -15,26 +15,31 @@ export interface ProgressInfo {
   total: number;
 }
 
-// Schema for batched question answers - all 13 questions answered at once
-const BatchedAnswersSchema = z.object({
-  "failure-modes": z.string(),
-  "input-domain": z.string(),
-  duplication: z.string(),
-  abstractions: z.string(),
-  invariants: z.string(),
-  "error-handling": z.string(),
-  testing: z.string(),
-  performance: z.string(),
-  "security-privacy": z.string(),
-  compatibility: z.string(),
-  observability: z.string(),
-});
+const ALL_QUESTION_IDS = [
+  "failure-modes",
+  "input-domain",
+  "duplication",
+  "abstractions",
+  "invariants",
+  "error-handling",
+  "testing",
+  "performance",
+  "security-privacy",
+  "compatibility",
+  "observability",
+] as const;
 
-type BatchedAnswers = z.infer<typeof BatchedAnswersSchema>;
+type QuestionId = (typeof ALL_QUESTION_IDS)[number];
 
-const BATCHED_QUESTION_IDS = Object.keys(
-  BatchedAnswersSchema.shape
-) as (keyof BatchedAnswers)[];
+const ANSWERABLE_QUESTION_IDS = new Set<QuestionId>(ALL_QUESTION_IDS);
+
+function buildBatchedAnswersSchema(questionIds: QuestionId[]) {
+  const shape: Record<string, z.ZodString> = {};
+  for (const id of questionIds) {
+    shape[id] = z.string();
+  }
+  return z.object(shape);
+}
 
 export async function answerChangesetQuestionsWithLLM(
   changeGroups: ChangeGroup[],
@@ -67,7 +72,10 @@ export async function answerChangesetQuestionsWithLLM(
   let completedCount = 0;
   const totalCount = tasks.length;
 
-  await runWithConcurrency(tasks, maxConcurrent, async ({ group }) => {
+  await runWithConcurrency(
+    tasks,
+    maxConcurrent,
+    async ({ group, questionIds }) => {
     const effectiveModel = options.model ?? DEFAULT_MODEL;
     try {
       options.onProgress?.({
@@ -83,12 +91,12 @@ export async function answerChangesetQuestionsWithLLM(
         "review-questions/batched.v1.txt",
         effectiveModel
       );
-      const userPrompt = buildUserPrompt(group);
+      const userPrompt = buildUserPrompt(group, questionIds);
 
       const answers = await generateStructured(
         systemPrompt,
         userPrompt,
-        BatchedAnswersSchema,
+        buildBatchedAnswersSchema(questionIds),
         {
           temperature: 0.2,
           maxTokens: 2048,
@@ -98,7 +106,7 @@ export async function answerChangesetQuestionsWithLLM(
       );
 
       // Apply answers to the corresponding questions
-      applyAnswersToGroup(group, answers);
+      applyAnswersToGroup(group, answers as Record<QuestionId, string>);
       updated = true;
       completedCount++;
       log?.(`[lgtm] answered all questions for "${group.title}"`);
@@ -122,7 +130,8 @@ export async function answerChangesetQuestionsWithLLM(
       );
       throw error;
     }
-  });
+    }
+  );
 
   return { changeGroups, updated };
 }
@@ -130,8 +139,8 @@ export async function answerChangesetQuestionsWithLLM(
 function buildChangesetTasks(
   changeGroups: ChangeGroup[],
   log?: (message: string) => void
-): Array<{ group: ChangeGroup }> {
-  const tasks: Array<{ group: ChangeGroup }> = [];
+): Array<{ group: ChangeGroup; questionIds: QuestionId[] }> {
+  const tasks: Array<{ group: ChangeGroup; questionIds: QuestionId[] }> = [];
 
   for (const group of changeGroups) {
     if (!group.reviewQuestions || group.reviewQuestions.length === 0) {
@@ -143,8 +152,11 @@ function buildChangesetTasks(
     const unansweredQuestions = group.reviewQuestions.filter(
       (q) =>
         q.category === "changeset" &&
-        BATCHED_QUESTION_IDS.includes(q.id as keyof BatchedAnswers) &&
+        ANSWERABLE_QUESTION_IDS.has(q.id as QuestionId) &&
         (!q.answer || q.answer.trim().length === 0)
+    );
+    const questionIds = unansweredQuestions.map(
+      (question) => question.id as QuestionId
     );
 
     if (unansweredQuestions.length === 0) {
@@ -157,7 +169,7 @@ function buildChangesetTasks(
     log?.(
       `[lgtm] changeset "${group.title}" (${unansweredQuestions.length} unanswered questions)`
     );
-    tasks.push({ group });
+    tasks.push({ group, questionIds });
   }
 
   return tasks;
@@ -165,13 +177,13 @@ function buildChangesetTasks(
 
 function applyAnswersToGroup(
   group: ChangeGroup,
-  answers: BatchedAnswers
+  answers: Record<QuestionId, string>
 ): void {
   if (!group.reviewQuestions) return;
 
   for (const question of group.reviewQuestions) {
     if (question.category !== "changeset") continue;
-    const questionId = question.id as keyof BatchedAnswers;
+    const questionId = question.id as QuestionId;
     if (questionId in answers) {
       question.answer = answers[questionId].trim();
     }
@@ -250,7 +262,10 @@ function extractErrorExtras(error: Error): string | undefined {
   return `Details: ${inspect(extras, { depth: 5, breakLength: 120 })}`;
 }
 
-function buildUserPrompt(group: ChangeGroup): string {
+function buildUserPrompt(
+  group: ChangeGroup,
+  questionIds: QuestionId[]
+): string {
   const fileList = group.files.map((file) => `- ${file}`).join("\n");
   const excludedFiles = group.files.filter((file) => isLLMExcludedFile(file));
   const hunks = group.hunks
@@ -273,10 +288,13 @@ function buildUserPrompt(group: ChangeGroup): string {
   const excludedNote = excludedFiles.length
     ? `\nExcluded (generated/lockfiles): ${excludedFiles.join(", ")}`
     : "";
+  const questionList = questionIds.length
+    ? `\nQuestions: ${questionIds.join(", ")}`
+    : "";
 
   return `## Changeset
 Title: ${group.title}
-Type: ${group.changeType}${description}${symbolsIntroduced}${symbolsModified}${excludedNote}
+Type: ${group.changeType}${description}${symbolsIntroduced}${symbolsModified}${excludedNote}${questionList}
 
 Files:
 ${fileList}

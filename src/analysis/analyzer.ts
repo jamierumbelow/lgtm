@@ -158,6 +158,26 @@ const CHANGESET_QUESTIONS: Omit<ReviewQuestion, "answer" | "context">[] = [
   },
 ];
 
+const CHANGESET_QUESTION_IDS: Readonly<Record<ChangeGroup["changeType"], string[]>> =
+  {
+    feature: CHANGESET_QUESTIONS.map((question) => question.id),
+    bugfix: ["failure-modes", "error-handling", "testing", "compatibility"],
+    refactor: ["abstractions", "duplication", "performance", "compatibility"],
+    test: ["testing", "failure-modes"],
+    config: ["compatibility", "testing"],
+    docs: ["compatibility"],
+    types: ["compatibility", "invariants"],
+    unknown: ["failure-modes", "testing", "compatibility", "performance"],
+  };
+
+function selectChangesetQuestions(
+  changeType: ChangeGroup["changeType"]
+): Omit<ReviewQuestion, "answer" | "context">[] {
+  const ids = CHANGESET_QUESTION_IDS[changeType] ?? [];
+  const idsSet = new Set(ids);
+  return CHANGESET_QUESTIONS.filter((question) => idsSet.has(question.id));
+}
+
 export function getAnalysisShape(
   options: Pick<AnalyzeOptions, "includeTraces"> = {}
 ): AnalysisShape {
@@ -437,13 +457,14 @@ function buildChangesetQuestions(
   let updated = false;
 
   const updatedGroups = changeGroups.map((group) => {
+    const selectedQuestions = selectChangesetQuestions(group.changeType);
     const existingGroup = existingById.get(group.id);
     const existingQuestions = existingGroup?.reviewQuestions ?? [];
     const existingQuestionsById = new Map(
       existingQuestions.map((question) => [question.id, question])
     );
 
-    const reviewQuestions = CHANGESET_QUESTIONS.map((question) => {
+    const reviewQuestions = selectedQuestions.map((question) => {
       const existing = existingQuestionsById.get(question.id);
       if (!existing) {
         updated = true;
