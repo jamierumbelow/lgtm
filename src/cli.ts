@@ -346,7 +346,7 @@ program
     "Base branch for local comparison (default: auto-detect)"
   )
   .option("-h, --head <branch>", "Head branch for local comparison")
-  .option("-f, --format <format>", "Output format: md, json, html", "md")
+  .option("-f, --format <format>", "Output format: md, json, html", "html")
   .option(
     "-o, --output <file>",
     "Output file (defaults to stdout for md/json, server for html)"
