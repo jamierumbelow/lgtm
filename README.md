@@ -9,12 +9,10 @@
 ### Quick Install (macOS/Linux)
 
 ```bash
-# Using GitHub CLI (recommended)
-export GITHUB_TOKEN=$(gh auth token)
 curl -fsSL https://raw.githubusercontent.com/jamierumbelow/lgtm/main/install.sh | bash
 ```
 
-This downloads a single pre-built binary and installs it to `/usr/local/bin`.
+This downloads a single pre-built binary and installs it to `/usr/local/bin`. The script automatically uses your GitHub CLI authentication if available.
 
 ### Manual Installation
 

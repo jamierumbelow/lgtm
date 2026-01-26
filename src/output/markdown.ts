@@ -1,67 +1,79 @@
-import { Analysis } from '../analysis/analyzer.js';
+import { Analysis } from "../analysis/analyzer.js";
 
 export function renderMarkdown(analysis: Analysis): string {
   const lines: string[] = [];
 
   // Header
-  lines.push(`# PR Review: ${analysis.title || `${analysis.baseBranch} ← ${analysis.headBranch}`}`);
-  lines.push('');
+  lines.push(
+    `# PR Review: ${
+      analysis.title || `${analysis.baseBranch} ← ${analysis.headBranch}`
+    }`
+  );
+  lines.push("");
   if (analysis.prUrl) {
     lines.push(`**URL:** ${analysis.prUrl}`);
   }
-  lines.push(`**Author:** ${analysis.author || 'Unknown'}`);
+  lines.push(`**Author:** ${analysis.author || "Unknown"}`);
   lines.push(`**Analyzed:** ${analysis.analyzedAt.toISOString()}`);
-  lines.push('');
+  lines.push("");
 
   // Stats
-  lines.push('## Overview');
-  lines.push('');
+  lines.push("## Overview");
+  lines.push("");
   lines.push(`- **Files changed:** ${analysis.filesChanged}`);
   lines.push(`- **Additions:** +${analysis.additions}`);
   lines.push(`- **Deletions:** -${analysis.deletions}`);
   lines.push(`- **Change groups:** ${analysis.changeGroups.length}`);
-  lines.push('');
+  lines.push("");
 
   // Description
   if (analysis.description) {
-    lines.push('## PR Description');
-    lines.push('');
+    lines.push("## PR Description");
+    lines.push("");
     lines.push(analysis.description);
-    lines.push('');
+    lines.push("");
   }
 
   // Change Groups
-  lines.push('## Changes');
-  lines.push('');
+  lines.push("## Changes");
+  lines.push("");
   for (const group of analysis.changeGroups) {
     lines.push(`### ${group.title}`);
-    lines.push('');
+    lines.push("");
     lines.push(`**Type:** ${group.changeType}`);
-    lines.push('');
-    lines.push('**Files:**');
+    lines.push("");
+    lines.push("**Files:**");
     for (const file of group.files) {
       lines.push(`- \`${file}\``);
     }
-    lines.push('');
+    lines.push("");
 
     if (group.description) {
-      lines.push('**Description:**');
+      lines.push("**Description:**");
       lines.push(group.description);
-      lines.push('');
+      lines.push("");
     }
 
     if (group.symbolsIntroduced && group.symbolsIntroduced.length > 0) {
-      lines.push(`**New symbols:** ${group.symbolsIntroduced.map(s => `\`${s}\``).join(', ')}`);
-      lines.push('');
+      lines.push(
+        `**New symbols:** ${group.symbolsIntroduced
+          .map((s) => `\`${s}\``)
+          .join(", ")}`
+      );
+      lines.push("");
     }
 
     if (group.symbolsModified && group.symbolsModified.length > 0) {
-      lines.push(`**Modified symbols:** ${group.symbolsModified.map(s => `\`${s}\``).join(', ')}`);
-      lines.push('');
+      lines.push(
+        `**Modified symbols:** ${group.symbolsModified
+          .map((s) => `\`${s}\``)
+          .join(", ")}`
+      );
+      lines.push("");
     }
 
     if (group.reviewQuestions && group.reviewQuestions.length > 0) {
-      lines.push('**Review Questions:**');
+      lines.push("**Review Questions:**");
       for (const question of group.reviewQuestions) {
         lines.push(`- ${question.question}`);
         if (question.answer) {
@@ -69,82 +81,88 @@ export function renderMarkdown(analysis: Analysis): string {
         } else if (question.context) {
           lines.push(`  ${question.context}`);
         } else {
-          lines.push('  *Analysis pending...*');
+          lines.push("  *Analysis pending...*");
         }
       }
-      lines.push('');
+      lines.push("");
     }
   }
 
   // Questions
-  lines.push('## Review Questions');
-  lines.push('');
+  lines.push("## Review Questions");
+  lines.push("");
   for (const question of analysis.questions) {
     lines.push(`### ${question.question}`);
-    lines.push('');
+    lines.push("");
     if (question.answer) {
       lines.push(question.answer);
     } else if (question.context) {
-      lines.push('**Context:**');
-      lines.push('```');
+      lines.push("**Context:**");
+      lines.push("```");
       lines.push(question.context);
-      lines.push('```');
+      lines.push("```");
     } else {
-      lines.push('*Analysis pending...*');
+      lines.push("*Analysis pending...*");
     }
-    lines.push('');
+    lines.push("");
   }
 
   // Suggested Reviewers
   if (analysis.suggestedReviewers.length > 0) {
-    lines.push('## Suggested Reviewers');
-    lines.push('');
+    lines.push("## Suggested Reviewers");
+    lines.push("");
     for (const reviewer of analysis.suggestedReviewers) {
       lines.push(`- ${reviewer}`);
     }
-    lines.push('');
+    lines.push("");
   }
 
   // Contributors
   if (analysis.contributors.length > 0) {
-    lines.push('## File Contributors');
-    lines.push('');
-    lines.push('| Name | Lines | Commits | Last Active |');
-    lines.push('|------|-------|---------|-------------|');
+    lines.push("## File Contributors");
+    lines.push("");
+    lines.push("| Name | Lines | Commits | Last Active |");
+    lines.push("|------|-------|---------|-------------|");
     for (const contrib of analysis.contributors.slice(0, 10)) {
-      const lastActive = contrib.lastCommitDate.toISOString().split('T')[0];
-      lines.push(`| ${contrib.name} | ${contrib.linesAuthored} | ${contrib.commits} | ${lastActive} |`);
+      const lastActive = contrib.lastCommitDate.toISOString().split("T")[0];
+      lines.push(
+        `| ${contrib.name} | ${contrib.linesAuthored} | ${contrib.commits} | ${lastActive} |`
+      );
     }
-    lines.push('');
+    lines.push("");
   }
 
   // LLM Traces
   if (analysis.traces && analysis.traces.length > 0) {
-    lines.push('## LLM Session Traces');
-    lines.push('');
-    lines.push('The following AI coding sessions may have contributed to this PR:');
-    lines.push('');
+    lines.push("## LLM Session Traces");
+    lines.push("");
+    lines.push(
+      "The following AI coding sessions may have contributed to this PR:"
+    );
+    lines.push("");
     for (const trace of analysis.traces) {
       lines.push(`### ${trace.source} - ${trace.sessionId}`);
-      lines.push('');
+      lines.push("");
       lines.push(`- **Confidence:** ${(trace.confidence * 100).toFixed(0)}%`);
       lines.push(`- **Timestamp:** ${trace.timestamp.toISOString()}`);
       lines.push(`- **Matched files:** ${trace.matchedFiles.length}`);
       lines.push(`- **Path:** \`${trace.sessionPath}\``);
-      lines.push('');
+      lines.push("");
       if (trace.snippets && trace.snippets.length > 0) {
-        lines.push('**Relevant snippets:**');
+        lines.push("**Relevant snippets:**");
         for (const snippet of trace.snippets) {
-          lines.push(`> ${snippet.replace(/\n/g, '\n> ')}`);
+          lines.push(`> ${snippet.replace(/\n/g, "\n> ")}`);
         }
-        lines.push('');
+        lines.push("");
       }
     }
   }
 
   // Footer
-  lines.push('---');
-  lines.push('*Generated by [lgtm](https://github.com/your-username/lgtm) - because "lgtm" should mean something*');
+  lines.push("---");
+  lines.push(
+    '*Generated by [lgtm](https://github.com/your-username/lgtm) - because "lgtm" should mean something*'
+  );
 
-  return lines.join('\n');
+  return lines.join("\n");
 }

@@ -24,7 +24,7 @@ jobs:
         run: |
           PACKAGE_VERSION=$(jq -r '.version' package.json)
           echo "version=v${PACKAGE_VERSION}" >> $GITHUB_OUTPUT
-          
+
           # Check if this tag already exists
           if git rev-parse "v${PACKAGE_VERSION}" >/dev/null 2>&1; then
             echo "Version v${PACKAGE_VERSION} already released"

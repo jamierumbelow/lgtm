@@ -1,6 +1,6 @@
-import { PRFile } from '../github/pr.js';
-import type { ReviewQuestion } from './analyzer.js';
-import { splitChangesetsWithLLM } from '../llm/changeset-splitter.js';
+import { PRFile } from "../github/pr.js";
+import type { ReviewQuestion } from "./analyzer.js";
+import { splitChangesetsWithLLM } from "../llm/changeset-splitter.js";
 
 export interface ChunkOptions {
   useLLM?: boolean;
@@ -18,7 +18,7 @@ export interface DiffHunk {
 export interface FileDiff {
   path: string;
   previousPath?: string;
-  status: PRFile['status'];
+  status: PRFile["status"];
   hunks: DiffHunk[];
 }
 
@@ -31,7 +31,15 @@ export interface ChangeGroup {
   symbolsIntroduced?: string[];
   symbolsModified?: string[];
   reviewQuestions?: ReviewQuestion[];
-  changeType: 'feature' | 'refactor' | 'bugfix' | 'test' | 'config' | 'docs' | 'types' | 'unknown';
+  changeType:
+    | "feature"
+    | "refactor"
+    | "bugfix"
+    | "test"
+    | "config"
+    | "docs"
+    | "types"
+    | "unknown";
 }
 
 /**
@@ -39,7 +47,7 @@ export interface ChangeGroup {
  */
 export function parseDiff(diff: string): FileDiff[] {
   const files: FileDiff[] = [];
-  const lines = diff.split('\n');
+  const lines = diff.split("\n");
 
   let currentFile: FileDiff | null = null;
   let currentHunk: DiffHunk | null = null;
@@ -49,10 +57,10 @@ export function parseDiff(diff: string): FileDiff[] {
     const line = lines[i];
 
     // New file header
-    if (line.startsWith('diff --git')) {
+    if (line.startsWith("diff --git")) {
       // Save previous hunk
       if (currentHunk && currentFile) {
-        currentHunk.content = hunkContent.join('\n');
+        currentHunk.content = hunkContent.join("\n");
         currentFile.hunks.push(currentHunk);
       }
 
@@ -62,7 +70,7 @@ export function parseDiff(diff: string): FileDiff[] {
         currentFile = {
           path: match[2],
           previousPath: match[1] !== match[2] ? match[1] : undefined,
-          status: 'modified',
+          status: "modified",
           hunks: [],
         };
         files.push(currentFile);
@@ -73,49 +81,54 @@ export function parseDiff(diff: string): FileDiff[] {
     }
 
     // File status indicators
-    if (line.startsWith('new file mode') && currentFile) {
-      currentFile.status = 'added';
+    if (line.startsWith("new file mode") && currentFile) {
+      currentFile.status = "added";
       continue;
     }
-    if (line.startsWith('deleted file mode') && currentFile) {
-      currentFile.status = 'removed';
+    if (line.startsWith("deleted file mode") && currentFile) {
+      currentFile.status = "removed";
       continue;
     }
-    if (line.startsWith('rename from') && currentFile) {
-      currentFile.status = 'renamed';
+    if (line.startsWith("rename from") && currentFile) {
+      currentFile.status = "renamed";
       continue;
     }
 
     // Hunk header
-    const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/);
+    const hunkMatch = line.match(
+      /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/
+    );
     if (hunkMatch && currentFile) {
       // Save previous hunk
       if (currentHunk) {
-        currentHunk.content = hunkContent.join('\n');
+        currentHunk.content = hunkContent.join("\n");
         currentFile.hunks.push(currentHunk);
       }
 
       currentHunk = {
         oldStart: parseInt(hunkMatch[1]),
-        oldLines: parseInt(hunkMatch[2] || '1'),
+        oldLines: parseInt(hunkMatch[2] || "1"),
         newStart: parseInt(hunkMatch[3]),
-        newLines: parseInt(hunkMatch[4] || '1'),
+        newLines: parseInt(hunkMatch[4] || "1"),
         header: hunkMatch[5].trim(),
-        content: '',
+        content: "",
       };
       hunkContent = [];
       continue;
     }
 
     // Hunk content
-    if (currentHunk && (line.startsWith('+') || line.startsWith('-') || line.startsWith(' '))) {
+    if (
+      currentHunk &&
+      (line.startsWith("+") || line.startsWith("-") || line.startsWith(" "))
+    ) {
       hunkContent.push(line);
     }
   }
 
   // Save final hunk
   if (currentHunk && currentFile) {
-    currentHunk.content = hunkContent.join('\n');
+    currentHunk.content = hunkContent.join("\n");
     currentFile.hunks.push(currentHunk);
   }
 
@@ -137,7 +150,7 @@ export async function chunkDiff(
     try {
       return await splitChangesetsWithLLM(diff);
     } catch (error) {
-      console.warn('LLM chunking failed, falling back to heuristic:', error);
+      console.warn("LLM chunking failed, falling back to heuristic:", error);
       // Fall through to heuristic approach
     }
   }
@@ -167,8 +180,10 @@ export function chunkDiffHeuristic(diff: string): ChangeGroup[] {
     const group: ChangeGroup = {
       id: `group-${groupId++}`,
       title: inferGroupTitle(dir, dirFiles),
-      files: dirFiles.map(f => f.path),
-      hunks: dirFiles.flatMap(f => f.hunks.map(h => ({ file: f.path, hunk: h }))),
+      files: dirFiles.map((f) => f.path),
+      hunks: dirFiles.flatMap((f) =>
+        f.hunks.map((h) => ({ file: f.path, hunk: h }))
+      ),
       changeType: inferChangeType(dirFiles),
       symbolsIntroduced: extractNewSymbols(dirFiles),
       symbolsModified: extractModifiedSymbols(dirFiles),
@@ -180,41 +195,56 @@ export function chunkDiffHeuristic(diff: string): ChangeGroup[] {
 }
 
 function getModulePath(filePath: string): string {
-  const parts = filePath.split('/');
+  const parts = filePath.split("/");
   // Return first 2 levels of directory, or just the file if at root
   if (parts.length <= 2) return parts[0];
-  return parts.slice(0, 2).join('/');
+  return parts.slice(0, 2).join("/");
 }
 
 function inferGroupTitle(dir: string, files: FileDiff[]): string {
   // Check for common patterns
-  if (dir.includes('test') || files.every(f => f.path.includes('.test.') || f.path.includes('.spec.'))) {
+  if (
+    dir.includes("test") ||
+    files.every((f) => f.path.includes(".test.") || f.path.includes(".spec."))
+  ) {
     return `Tests: ${dir}`;
   }
   if (files.length === 1) {
-    return files[0].path.split('/').pop() || dir;
+    return files[0].path.split("/").pop() || dir;
   }
   return `Changes in ${dir}`;
 }
 
-function inferChangeType(files: FileDiff[]): ChangeGroup['changeType'] {
-  const paths = files.map(f => f.path.toLowerCase());
+function inferChangeType(files: FileDiff[]): ChangeGroup["changeType"] {
+  const paths = files.map((f) => f.path.toLowerCase());
 
-  if (paths.every(p => p.includes('test') || p.includes('spec'))) return 'test';
-  if (paths.every(p => p.includes('readme') || p.includes('doc') || p.endsWith('.md'))) return 'docs';
-  if (paths.every(p =>
-    p.includes('config') ||
-    p.endsWith('.json') ||
-    p.endsWith('.yaml') ||
-    p.endsWith('.yml') ||
-    p.endsWith('.toml')
-  )) return 'config';
+  if (paths.every((p) => p.includes("test") || p.includes("spec")))
+    return "test";
+  if (
+    paths.every(
+      (p) => p.includes("readme") || p.includes("doc") || p.endsWith(".md")
+    )
+  )
+    return "docs";
+  if (
+    paths.every(
+      (p) =>
+        p.includes("config") ||
+        p.endsWith(".json") ||
+        p.endsWith(".yaml") ||
+        p.endsWith(".yml") ||
+        p.endsWith(".toml")
+    )
+  )
+    return "config";
 
   // Check hunk content for patterns
-  const allContent = files.flatMap(f => f.hunks.map(h => h.content)).join('\n');
-  if (allContent.includes('fix') || allContent.includes('bug')) return 'bugfix';
+  const allContent = files
+    .flatMap((f) => f.hunks.map((h) => h.content))
+    .join("\n");
+  if (allContent.includes("fix") || allContent.includes("bug")) return "bugfix";
 
-  return 'unknown';
+  return "unknown";
 }
 
 function extractNewSymbols(files: FileDiff[]): string[] {
@@ -223,13 +253,15 @@ function extractNewSymbols(files: FileDiff[]): string[] {
   for (const file of files) {
     for (const hunk of file.hunks) {
       const addedLines = hunk.content
-        .split('\n')
-        .filter(l => l.startsWith('+'))
-        .map(l => l.slice(1));
+        .split("\n")
+        .filter((l) => l.startsWith("+"))
+        .map((l) => l.slice(1));
 
       for (const line of addedLines) {
         // Function declarations
-        const funcMatch = line.match(/(?:function|const|let|var)\s+(\w+)\s*[=(]/);
+        const funcMatch = line.match(
+          /(?:function|const|let|var)\s+(\w+)\s*[=(]/
+        );
         if (funcMatch) symbols.push(funcMatch[1]);
 
         // Class declarations
