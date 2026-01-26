@@ -367,10 +367,8 @@ program
 
       // Determine source: PR URL or local branches
       if (!prUrl && !options.head) {
-        console.error(
-          chalk.red("Error: Provide a PR URL or use --head to specify a branch")
-        );
-        process.exit(1);
+        program.help();
+        return;
       }
 
       let prData: Awaited<ReturnType<typeof getPRData>> | undefined;
