@@ -269,6 +269,9 @@ program
               useLLM: options.llm !== false,
               includeTraces: options.findTraces,
               verbose: options.verbose,
+              onProgress: prUrl
+                ? (partialAnalysis) => setCache(prUrl, prData!, partialAnalysis)
+                : undefined,
             },
             cached.analysis
           );
@@ -310,6 +313,9 @@ program
         analysis = await analyzeChanges(prData, {
           useLLM: options.llm !== false,
           verbose: options.verbose,
+          onProgress: prUrl
+            ? (partialAnalysis) => setCache(prUrl, prData!, partialAnalysis)
+            : undefined,
         });
         spinner.succeed(
           `Analyzed ${analysis.changeGroups.length} change groups across ${analysis.filesChanged} files`

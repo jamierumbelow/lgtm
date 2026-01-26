@@ -54,6 +54,7 @@ interface AnalyzeOptions {
   useLLM: boolean;
   includeTraces?: boolean;
   verbose?: boolean;
+  onProgress?: (analysis: Analysis) => void | Promise<void>;
 }
 
 export interface AnalysisShape {
@@ -245,6 +246,24 @@ export async function analyzeChanges(
   const suggestedReviewers = buildSuggestedReviewers(prData, contributors);
   const questionsResult = buildQuestions(prData, changeGroups, contributors);
 
+  // Build a partial analysis for progress callbacks
+  const buildPartialAnalysis = (groups: ChangeGroup[]): Analysis => ({
+    prUrl: prData.url,
+    title: prData.title,
+    description: prData.body,
+    author: prData.author,
+    baseBranch: prData.baseBranch,
+    headBranch: prData.headBranch,
+    analyzedAt: new Date(),
+    filesChanged: prData.files.length,
+    additions,
+    deletions,
+    changeGroups: groups,
+    questions: questionsResult.questions,
+    contributors,
+    suggestedReviewers,
+  });
+
   if (options.useLLM) {
     if (options.verbose) {
       console.log(
@@ -253,7 +272,12 @@ export async function analyzeChanges(
     }
     const answeredChangesets = await answerChangesetQuestionsWithLLM(
       changeGroupsWithQuestions,
-      { verbose: options.verbose }
+      {
+        verbose: options.verbose,
+        onQuestionAnswered: options.onProgress
+          ? (groups) => options.onProgress!(buildPartialAnalysis(groups))
+          : undefined,
+      }
     );
     changeGroupsWithQuestions = answeredChangesets.changeGroups;
   }
@@ -265,22 +289,7 @@ export async function analyzeChanges(
     // This would use the describer module
   }
 
-  return {
-    prUrl: prData.url,
-    title: prData.title,
-    description: prData.body,
-    author: prData.author,
-    baseBranch: prData.baseBranch,
-    headBranch: prData.headBranch,
-    analyzedAt: new Date(),
-    filesChanged: prData.files.length,
-    additions,
-    deletions,
-    changeGroups: changeGroupsWithQuestions,
-    questions: questionsResult.questions,
-    contributors,
-    suggestedReviewers,
-  };
+  return buildPartialAnalysis(changeGroupsWithQuestions);
 }
 
 export async function ensureAnalysis(
@@ -316,28 +325,15 @@ export async function ensureAnalysis(
   );
   let changeGroupsWithQuestions = changesetQuestionsResult.changeGroups;
   let changesetAnswersUpdated = false;
-  if (options.useLLM) {
-    if (options.verbose) {
-      console.log(
-        `[lgtm] answering changeset questions for ${changeGroupsWithQuestions.length} change groups`
-      );
-    }
-    const answeredChangesets = await answerChangesetQuestionsWithLLM(
-      changeGroupsWithQuestions,
-      { verbose: options.verbose }
-    );
-    changeGroupsWithQuestions = answeredChangesets.changeGroups;
-    changesetAnswersUpdated = answeredChangesets.updated;
-  }
-  const questionsResult = buildQuestions(
-    prData,
-    changeGroupsWithQuestions,
-    contributors,
-    existing.questions
-  );
 
   const { additions, deletions } = calculateStats(prData);
-  const updatedAnalysis: Analysis = {
+
+  // Build a partial analysis for progress callbacks (uses existing.questions as
+  // questionsResult isn't available until after LLM calls complete)
+  const buildPartialAnalysis = (
+    groups: ChangeGroup[],
+    questions: ReviewQuestion[] = existing.questions
+  ): Analysis => ({
     ...existing,
     prUrl: existing.prUrl ?? prData.url,
     title: existing.title ?? prData.title,
@@ -349,11 +345,41 @@ export async function ensureAnalysis(
     filesChanged: existing.filesChanged ?? prData.files.length,
     additions: existing.additions ?? additions,
     deletions: existing.deletions ?? deletions,
-    changeGroups: changeGroupsWithQuestions,
-    questions: questionsResult.questions,
+    changeGroups: groups,
+    questions,
     contributors,
     suggestedReviewers,
-  };
+  });
+
+  if (options.useLLM) {
+    if (options.verbose) {
+      console.log(
+        `[lgtm] answering changeset questions for ${changeGroupsWithQuestions.length} change groups`
+      );
+    }
+    const answeredChangesets = await answerChangesetQuestionsWithLLM(
+      changeGroupsWithQuestions,
+      {
+        verbose: options.verbose,
+        onQuestionAnswered: options.onProgress
+          ? (groups) => options.onProgress!(buildPartialAnalysis(groups))
+          : undefined,
+      }
+    );
+    changeGroupsWithQuestions = answeredChangesets.changeGroups;
+    changesetAnswersUpdated = answeredChangesets.updated;
+  }
+  const questionsResult = buildQuestions(
+    prData,
+    changeGroupsWithQuestions,
+    contributors,
+    existing.questions
+  );
+
+  const updatedAnalysis: Analysis = buildPartialAnalysis(
+    changeGroupsWithQuestions,
+    questionsResult.questions
+  );
 
   const updated =
     missing.needsChangeGroups ||

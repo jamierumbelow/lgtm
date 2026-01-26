@@ -18,6 +18,7 @@ export async function answerChangesetQuestionsWithLLM(
     verbose?: boolean;
     log?: (message: string) => void;
     maxConcurrent?: number;
+    onQuestionAnswered?: (changeGroups: ChangeGroup[]) => void | Promise<void>;
   } = {}
 ): Promise<{ changeGroups: ChangeGroup[]; updated: boolean }> {
   let updated = false;
@@ -66,6 +67,11 @@ export async function answerChangesetQuestionsWithLLM(
         question.answer = response.answer.trim();
         updated = true;
         log?.(`[lgtm] answered ${question.id} for "${group.title}"`);
+
+        // Persist to cache immediately after answering
+        if (options.onQuestionAnswered) {
+          await options.onQuestionAnswered(changeGroups);
+        }
       } catch (error) {
         const message = formatErrorDetails(error);
         console.error(
