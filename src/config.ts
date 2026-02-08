@@ -3,6 +3,8 @@ export enum ModelChoice {
   ClaudeOpus45 = "claude-opus-4.5",
   Gpt52 = "gpt-5.2",
   Gemini3Flash = "gemini-3-flash",
+  ClaudeCode = "claude-code",
+  Codex = "codex",
 }
 
 export const DEFAULT_MODEL = ModelChoice.ClaudeSonnet45;

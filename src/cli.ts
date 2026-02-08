@@ -367,7 +367,7 @@ program
   .option("--no-llm", "Skip LLM-powered analysis (descriptions, questions)")
   .option(
     "-m, --model <model>",
-    "LLM model: claude-sonnet-4.5, claude-opus-4.5, gpt-5.2, gemini-3-flash"
+    "LLM model: claude-sonnet-4.5, claude-opus-4.5, gpt-5.2, gemini-3-flash, claude-code, codex"
   )
   .option("--verbose", "Enable verbose logging")
   .option("--fresh", "Bypass cache and fetch fresh data")
@@ -649,7 +649,9 @@ program
             const findAvailablePort = (port: number): Promise<number> =>
               new Promise((resolve) => {
                 const server = createNetServer();
-                server.once("error", () => resolve(findAvailablePort(port + 1)));
+                server.once("error", () =>
+                  resolve(findAvailablePort(port + 1))
+                );
                 server.listen(port, () => server.close(() => resolve(port)));
               });
 

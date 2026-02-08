@@ -23,6 +23,10 @@ import {
   getSchemaSignature,
   setCachedPromptResponse,
 } from "./prompt-cache.js";
+import {
+  generateStructuredViaCLI,
+  isCLIAvailable,
+} from "./cli-provider.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROMPTS_DIR = join(__dirname, "../../prompts");
@@ -72,6 +76,32 @@ export async function generateStructured<T>(
   } = options;
   let currentModel = modelOverride ?? requestedModel;
   let modelSpec = getModelSpec(currentModel);
+
+  // CLI provider path — delegate to subprocess-based provider
+  if (modelSpec.provider === "cli") {
+    const cacheKey = createPromptCacheKey({
+      modelId: modelSpec.modelId,
+      systemPrompt,
+      userPrompt,
+      schemaSignature: getSchemaSignature(schema),
+      temperature,
+      maxTokens,
+    });
+    const cached = getCachedPromptResponse<T>(cacheKey);
+    if (cached) return cached;
+
+    const result = await generateStructuredViaCLI(
+      systemPrompt,
+      userPrompt,
+      schema,
+      modelSpec,
+      { verbose }
+    );
+    setCachedPromptResponse(cacheKey, result);
+    return result;
+  }
+
+  // AI SDK provider path
   let modelClient = await getModelClient(modelSpec);
 
   const maxRateLimitRetries = 3;
@@ -197,6 +227,10 @@ async function getModelClient(modelSpec: ReturnType<typeof getModelSpec>) {
       }
       return createGoogleGenerativeAI({ apiKey });
     }
+    case "cli":
+      throw new Error(
+        "CLI providers should not use getModelClient — this is a bug."
+      );
   }
 }
 
@@ -467,20 +501,39 @@ async function getAvailableAlternativeModels(
   const hasOpenAI = await hasOpenAIApiKey();
   const hasGoogle = await hasGoogleApiKey();
 
-  const isAvailable = (model: ModelChoice): boolean => {
-    const provider = MODEL_SPECS[model].provider;
-    if (provider === "anthropic") return hasAnthropic;
-    if (provider === "openai") return hasOpenAI;
-    if (provider === "google") return hasGoogle;
+  // Check CLI tool availability (cached per call)
+  const cliAvailabilityCache = new Map<string, boolean>();
+  const checkCLI = async (command: string): Promise<boolean> => {
+    if (!cliAvailabilityCache.has(command)) {
+      cliAvailabilityCache.set(command, await isCLIAvailable(command));
+    }
+    return cliAvailabilityCache.get(command)!;
+  };
+
+  const isAvailable = async (model: ModelChoice): Promise<boolean> => {
+    const spec = MODEL_SPECS[model];
+    if (spec.provider === "anthropic") return hasAnthropic;
+    if (spec.provider === "openai") return hasOpenAI;
+    if (spec.provider === "google") return hasGoogle;
+    if (spec.provider === "cli") return checkCLI(spec.cliCommand!);
     return false;
   };
 
   const currentProvider = MODEL_SPECS[currentModel].provider;
-  return Object.values(ModelChoice).filter((model) => {
+  const candidates = Object.values(ModelChoice).filter((model) => {
     if (model === currentModel) return false;
     if (MODEL_SPECS[model].provider === currentProvider) return false;
-    return isAvailable(model);
+    return true;
   });
+
+  const results = await Promise.all(
+    candidates.map(async (model) => ({
+      model,
+      available: await isAvailable(model),
+    }))
+  );
+
+  return results.filter((r) => r.available).map((r) => r.model);
 }
 
 function isInteractive(): boolean {

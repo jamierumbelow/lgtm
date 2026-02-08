@@ -1,12 +1,14 @@
 import { ModelChoice, DEFAULT_MODEL } from "../config.js";
 
-export type ModelProvider = "anthropic" | "openai" | "google";
+export type ModelProvider = "anthropic" | "openai" | "google" | "cli";
 
 export interface ModelSpec {
   provider: ModelProvider;
   modelId: string;
   promptSuffix: string;
   label: string;
+  /** For CLI providers, the command to invoke (e.g. "claude", "codex") */
+  cliCommand?: string;
 }
 
 export const MODEL_SPECS: Record<ModelChoice, ModelSpec> = {
@@ -33,6 +35,20 @@ export const MODEL_SPECS: Record<ModelChoice, ModelSpec> = {
     modelId: "gemini-3-flash",
     promptSuffix: "gemini-3-flash",
     label: "Gemini 3 Flash",
+  },
+  [ModelChoice.ClaudeCode]: {
+    provider: "cli",
+    modelId: "claude-code",
+    promptSuffix: "claude-sonnet-4.5",
+    cliCommand: "claude",
+    label: "Claude Code (CLI)",
+  },
+  [ModelChoice.Codex]: {
+    provider: "cli",
+    modelId: "codex",
+    promptSuffix: "gpt-5.2",
+    cliCommand: "codex",
+    label: "Codex (CLI)",
   },
 };
 
