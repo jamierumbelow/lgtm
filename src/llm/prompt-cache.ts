@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from "fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { createHash } from "crypto";
@@ -50,6 +50,19 @@ export function getCachedPromptResponse<T>(key: string): T | null {
     return JSON.parse(raw) as T;
   } catch {
     return null;
+  }
+}
+
+export function clearPromptCache(): void {
+  if (!existsSync(PROMPT_CACHE_DIR)) return;
+  for (const file of readdirSync(PROMPT_CACHE_DIR)) {
+    if (file.endsWith(".json")) {
+      try {
+        unlinkSync(join(PROMPT_CACHE_DIR, file));
+      } catch {
+        // ignore individual file errors
+      }
+    }
   }
 }
 

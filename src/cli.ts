@@ -34,6 +34,7 @@ import {
 } from "./secrets.js";
 import { select, password, confirm } from "@inquirer/prompts";
 import { getCached, setCache, clearCache, getCacheInfo } from "./cache.js";
+import { clearPromptCache } from "./llm/prompt-cache.js";
 import {
   getLLMUsageRecords,
   getLLMUsageTotals,
@@ -524,8 +525,9 @@ program
       }
 
       // Clear cache if --fresh
-      if (cacheKey && options.fresh) {
-        clearCache(cacheKey);
+      if (options.fresh) {
+        if (cacheKey) clearCache(cacheKey);
+        clearPromptCache();
       }
 
       // Fetch and analyze if not cached
