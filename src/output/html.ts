@@ -859,12 +859,7 @@ export function renderHTML(analysis: Analysis): string {
       color: var(--text);
     }
 
-    /* Changeset list on summary */
-    .changeset-list {
-      width: 100%;
-      margin-bottom: 40px;
-    }
-
+    /* Changeset number (used in list + slides) */
     .changeset-number {
       font-size: 13px;
       font-weight: 600;
@@ -873,31 +868,76 @@ export function renderHTML(analysis: Analysis): string {
       min-width: 2em;
     }
 
+    /* Changeset list on summary */
+    .changeset-list {
+      width: 100%;
+      margin-bottom: 40px;
+    }
+
     .changeset-list-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 14px;
+      padding: 14px 0;
+      border-top: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.1s;
+      margin: 0 -16px;
+      padding-left: 16px;
+      padding-right: 16px;
+      border-radius: 6px;
     }
 
     .changeset-list-item:last-child {
-      border-bottom: none;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .changeset-list-item:hover {
+      background: var(--bg-secondary);
     }
 
     .changeset-list-title {
-      flex: 1;
+      font-size: 15px;
+      font-weight: 500;
       color: var(--text);
+      line-height: 1.4;
+    }
+
+    .changeset-list-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .changeset-list-type {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.3px;
+    }
+
+    .changeset-list-type.feature { color: #58a6ff; }
+    .changeset-list-type.refactor { color: #a371f7; }
+    .changeset-list-type.bugfix { color: #f85149; }
+    .changeset-list-type.test { color: #3fb950; }
+    .changeset-list-type.config { color: #d29922; }
+    .changeset-list-type.docs { color: #8b949e; }
+    .changeset-list-type.types { color: #79c0ff; }
+    .changeset-list-type.unknown { color: #8b949e; }
+
+    .changeset-list-sep {
+      color: var(--border);
     }
 
     .changeset-list-verdict {
-      font-size: 12px;
-      color: var(--text-muted);
-      max-width: 300px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .changeset-list-files {
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 11px;
     }
   </style>
 </head>
@@ -1078,35 +1118,32 @@ function renderChangesetList(analysis: Analysis): string {
   if (analysis.changeGroups.length === 0) return "";
 
   const items = analysis.changeGroups
-    .map(
-      (group, i) => `
-      <div class="changeset-list-item">
-        <span class="changeset-number">#${i + 1}</span>
-        <span class="change-type ${group.changeType}">${group.changeType}</span>
-        ${
-          group.riskLevel
-            ? `<span class="risk-badge ${group.riskLevel}">${group.riskLevel}</span>`
-            : ""
-        }
-        <span class="changeset-list-title">${escapeHtml(group.title)}</span>
-        ${
-          group.verdict
-            ? `<span class="changeset-list-verdict" title="${escapeHtml(
-                group.verdict
-              )}">${escapeHtml(group.verdict)}</span>`
-            : ""
-        }
-      </div>
-    `
-    )
+    .map((group, index) => {
+      const slideIndex = index + 1;
+      const verdict = group.verdict
+        ? `<span class="changeset-list-sep">\u00b7</span> <span class="changeset-list-verdict">${escapeHtml(group.verdict)}</span>`
+        : "";
+      const fileCount = group.files.length;
+      const filesLabel = `${fileCount} file${fileCount === 1 ? "" : "s"}`;
+
+      return `
+        <div class="changeset-list-item" onclick="showSlide(${slideIndex})">
+          <div class="changeset-list-title">${escapeHtml(group.title)}</div>
+          <div class="changeset-list-meta">
+            <span class="changeset-list-type ${group.changeType}">${group.changeType}</span>
+            <span class="changeset-list-sep">\u00b7</span>
+            <span class="changeset-list-files">${filesLabel}</span>
+            ${verdict}
+          </div>
+        </div>`;
+    })
     .join("");
 
   return `
     <div class="changeset-list">
       <div class="meta-section-title">Changesets</div>
       ${items}
-    </div>
-  `;
+    </div>`;
 }
 
 function renderReviewSlides(analysis: Analysis): string {
