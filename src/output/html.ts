@@ -533,14 +533,14 @@ export function renderHTML(analysis: Analysis): string {
     /* Summary Slide */
     .slide.summary.active {
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
     }
 
     .summary-slide {
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       width: 100%;
       height: 100%;
       padding: 80px 40px 120px;
@@ -550,7 +550,7 @@ export function renderHTML(analysis: Analysis): string {
     .summary-content {
       max-width: 700px;
       width: 100%;
-      margin: 0 auto;
+      margin: auto;
       display: flex;
       flex-direction: column;
       align-items: center;
