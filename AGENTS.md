@@ -115,7 +115,7 @@ The main flow (in `src/cli.ts`) is:
 #### `src/secrets.ts`
 - Securely stores API keys in system keychain (macOS Keychain, Linux Secret Service)
 - Falls back to environment variables
-- Used by `lgtm config` command
+- Used by `lgtm --config` command
 
 ### Prompt System
 

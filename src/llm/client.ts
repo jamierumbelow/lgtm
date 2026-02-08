@@ -204,7 +204,7 @@ async function getModelClient(modelSpec: ReturnType<typeof getModelSpec>) {
       const apiKey = await getAnthropicApiKey();
       if (!apiKey) {
         throw new Error(
-          "Anthropic API key not configured. Run `lgtm config` or set ANTHROPIC_API_KEY environment variable."
+          "Anthropic API key not configured. Run `lgtm --config` or set ANTHROPIC_API_KEY environment variable."
         );
       }
       return createAnthropic({ apiKey });
@@ -213,7 +213,7 @@ async function getModelClient(modelSpec: ReturnType<typeof getModelSpec>) {
       const apiKey = await getOpenAIApiKey();
       if (!apiKey) {
         throw new Error(
-          "OpenAI API key not configured. Run `lgtm config` or set OPENAI_API_KEY environment variable."
+          "OpenAI API key not configured. Run `lgtm --config` or set OPENAI_API_KEY environment variable."
         );
       }
       return createOpenAI({ apiKey });
@@ -222,7 +222,7 @@ async function getModelClient(modelSpec: ReturnType<typeof getModelSpec>) {
       const apiKey = await getGoogleApiKey();
       if (!apiKey) {
         throw new Error(
-          "Gemini API key not configured. Run `lgtm config` or set GOOGLE_GENERATIVE_AI_API_KEY environment variable."
+          "Gemini API key not configured. Run `lgtm --config` or set GOOGLE_GENERATIVE_AI_API_KEY environment variable."
         );
       }
       return createGoogleGenerativeAI({ apiKey });

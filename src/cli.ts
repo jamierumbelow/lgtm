@@ -70,8 +70,7 @@ program
   .name("lgtm")
   .description(
     'Structured PR review companion - because "lgtm" should mean something'
-  )
-  .version(getVersionString());
+  );
 
 // Helper functions for config TUI
 const getStatusIcon = (hasKey: boolean, hasEnvKey: boolean): string => {
@@ -261,187 +260,176 @@ const handleDefaultModelSetup = async (): Promise<void> => {
   );
 };
 
-// Config command
-program
-  .command("config")
-  .description("Configure lgtm settings")
-  .action(async () => {
-    console.log();
-    console.log(chalk.bold.magenta("  ⚙  lgtm config"));
-    await printStatus();
+// Action handlers for management flags
 
-    let running = true;
-    while (running) {
-      try {
-        const choice = await select({
-          message: "What would you like to configure?",
-          choices: [
-            { name: "Default Model", value: "model" },
-            { name: "Anthropic API Key", value: "anthropic" },
-            { name: "OpenAI API Key", value: "openai" },
-            { name: "Gemini API Key", value: "gemini" },
-            { name: "Show status", value: "status" },
-            { name: "Exit", value: "exit" },
-          ],
-        });
+const runConfig = async (): Promise<void> => {
+  console.log();
+  console.log(chalk.bold.magenta("  ⚙  lgtm config"));
+  await printStatus();
 
-        switch (choice) {
-          case "model":
-            await handleDefaultModelSetup();
-            break;
-          case "anthropic":
-            await handleApiKeySetup(
-              "Anthropic",
-              setAnthropicApiKey,
-              deleteAnthropicApiKey,
-              hasAnthropicApiKey
-            );
-            break;
-          case "openai":
-            await handleApiKeySetup(
-              "OpenAI",
-              setOpenAIApiKey,
-              deleteOpenAIApiKey,
-              hasOpenAIApiKey
-            );
-            break;
-          case "gemini":
-            await handleApiKeySetup(
-              "Gemini",
-              setGoogleApiKey,
-              deleteGoogleApiKey,
-              hasGoogleApiKey
-            );
-            break;
-          case "status":
-            await printStatus();
-            break;
-          case "exit":
-            running = false;
-            break;
-        }
-      } catch (error) {
-        // User pressed Ctrl+C
-        if (
-          error instanceof Error &&
-          error.message.includes("User force closed")
-        ) {
-          running = false;
-        } else {
-          throw error;
-        }
-      }
-    }
-
-    console.log(chalk.dim("\n  Goodbye!\n"));
-  });
-
-// Upgrade command
-program
-  .command("upgrade")
-  .description("Upgrade lgtm to the latest version")
-  .option("--canary", "Switch to canary (bleeding edge) builds")
-  .option("--stable", "Switch to stable builds")
-  .action(async (options) => {
-    const { spawn } = await import("child_process");
-    const spinner = ora();
-
-    // Determine which track to use
-    let useCanary = IS_CANARY;
-
-    if (options.canary && options.stable) {
-      console.error(chalk.red("Cannot specify both --canary and --stable"));
-      process.exit(1);
-    }
-
-    if (options.canary) {
-      useCanary = true;
-    } else if (options.stable) {
-      useCanary = false;
-    }
-
-    const buildType = useCanary ? "canary" : "stable";
-    const currentBuildType = getBuildType();
-
-    console.log();
-    console.log(chalk.bold.magenta("  ⬆  lgtm upgrade"));
-    console.log();
-
-    // Show current version info
-    console.log(chalk.dim("  Current version"));
-    console.log(`  ${getVersionString()} (${currentBuildType})`);
-    if (IS_CANARY && COMMIT_SHA) {
-      console.log(chalk.dim(`  Commit: ${COMMIT_SHA}`));
-    }
-    console.log();
-
-    if (currentBuildType !== buildType) {
-      console.log(
-        chalk.yellow(
-          `  Switching from ${currentBuildType} to ${buildType} track`
-        )
-      );
-      console.log();
-    }
-
-    spinner.start(`Fetching latest ${buildType} release...`);
-
-    const installScript = useCanary
-      ? "https://raw.githubusercontent.com/jamierumbelow/lgtm/master/install-canary.sh"
-      : "https://raw.githubusercontent.com/jamierumbelow/lgtm/master/install.sh";
-
+  let running = true;
+  while (running) {
     try {
-      // Use curl to fetch and bash to execute the install script
-      const child = spawn(
-        "bash",
-        ["-c", `curl -fsSL "${installScript}" | bash`],
-        {
-          stdio: "inherit",
-          env: { ...process.env },
-        }
-      );
-
-      await new Promise<void>((resolve, reject) => {
-        child.on("close", (code) => {
-          if (code === 0) {
-            spinner.stop();
-            resolve();
-          } else {
-            spinner.fail("Upgrade failed");
-            reject(new Error(`Install script exited with code ${code}`));
-          }
-        });
-        child.on("error", (err) => {
-          spinner.fail("Upgrade failed");
-          reject(err);
-        });
+      const choice = await select({
+        message: "What would you like to configure?",
+        choices: [
+          { name: "Default Model", value: "model" },
+          { name: "Anthropic API Key", value: "anthropic" },
+          { name: "OpenAI API Key", value: "openai" },
+          { name: "Gemini API Key", value: "gemini" },
+          { name: "Show status", value: "status" },
+          { name: "Exit", value: "exit" },
+        ],
       });
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error(chalk.red(error.message));
-      }
-      process.exit(1);
-    }
-  });
 
-// Version command
-program
-  .command("version")
-  .description("Show detailed version information")
-  .action(() => {
-    console.log();
-    console.log(chalk.bold.magenta("  lgtm"));
-    console.log();
-    console.log(`  Version:    ${getVersionString()}`);
-    console.log(`  Build:      ${getBuildType()}`);
-    if (IS_CANARY && COMMIT_SHA) {
-      console.log(`  Commit:     ${COMMIT_SHA}`);
+      switch (choice) {
+        case "model":
+          await handleDefaultModelSetup();
+          break;
+        case "anthropic":
+          await handleApiKeySetup(
+            "Anthropic",
+            setAnthropicApiKey,
+            deleteAnthropicApiKey,
+            hasAnthropicApiKey
+          );
+          break;
+        case "openai":
+          await handleApiKeySetup(
+            "OpenAI",
+            setOpenAIApiKey,
+            deleteOpenAIApiKey,
+            hasOpenAIApiKey
+          );
+          break;
+        case "gemini":
+          await handleApiKeySetup(
+            "Gemini",
+            setGoogleApiKey,
+            deleteGoogleApiKey,
+            hasGoogleApiKey
+          );
+          break;
+        case "status":
+          await printStatus();
+          break;
+        case "exit":
+          running = false;
+          break;
+      }
+    } catch (error) {
+      // User pressed Ctrl+C
+      if (
+        error instanceof Error &&
+        error.message.includes("User force closed")
+      ) {
+        running = false;
+      } else {
+        throw error;
+      }
     }
-    if (BUILD_DATE) {
-      console.log(`  Built:      ${BUILD_DATE}`);
-    }
+  }
+
+  console.log(chalk.dim("\n  Goodbye!\n"));
+};
+
+const runUpgrade = async (options: {
+  canary?: boolean;
+  stable?: boolean;
+}): Promise<void> => {
+  const { spawn } = await import("child_process");
+  const spinner = ora();
+
+  // Determine which track to use
+  let useCanary = IS_CANARY;
+
+  if (options.canary && options.stable) {
+    console.error(chalk.red("Cannot specify both --canary and --stable"));
+    process.exit(1);
+  }
+
+  if (options.canary) {
+    useCanary = true;
+  } else if (options.stable) {
+    useCanary = false;
+  }
+
+  const buildType = useCanary ? "canary" : "stable";
+  const currentBuildType = getBuildType();
+
+  console.log();
+  console.log(chalk.bold.magenta("  ⬆  lgtm upgrade"));
+  console.log();
+
+  // Show current version info
+  console.log(chalk.dim("  Current version"));
+  console.log(`  ${getVersionString()} (${currentBuildType})`);
+  if (IS_CANARY && COMMIT_SHA) {
+    console.log(chalk.dim(`  Commit: ${COMMIT_SHA}`));
+  }
+  console.log();
+
+  if (currentBuildType !== buildType) {
+    console.log(
+      chalk.yellow(`  Switching from ${currentBuildType} to ${buildType} track`)
+    );
     console.log();
-  });
+  }
+
+  spinner.start(`Fetching latest ${buildType} release...`);
+
+  const installScript = useCanary
+    ? "https://raw.githubusercontent.com/jamierumbelow/lgtm/master/install-canary.sh"
+    : "https://raw.githubusercontent.com/jamierumbelow/lgtm/master/install.sh";
+
+  try {
+    // Use curl to fetch and bash to execute the install script
+    const child = spawn(
+      "bash",
+      ["-c", `curl -fsSL "${installScript}" | bash`],
+      {
+        stdio: "inherit",
+        env: { ...process.env },
+      }
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      child.on("close", (code) => {
+        if (code === 0) {
+          spinner.stop();
+          resolve();
+        } else {
+          spinner.fail("Upgrade failed");
+          reject(new Error(`Install script exited with code ${code}`));
+        }
+      });
+      child.on("error", (err) => {
+        spinner.fail("Upgrade failed");
+        reject(err);
+      });
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error(chalk.red(error.message));
+    }
+    process.exit(1);
+  }
+};
+
+const runVersion = (): void => {
+  console.log();
+  console.log(chalk.bold.magenta("  lgtm"));
+  console.log();
+  console.log(`  Version:    ${getVersionString()}`);
+  console.log(`  Build:      ${getBuildType()}`);
+  if (IS_CANARY && COMMIT_SHA) {
+    console.log(`  Commit:     ${COMMIT_SHA}`);
+  }
+  if (BUILD_DATE) {
+    console.log(`  Built:      ${BUILD_DATE}`);
+  }
+  console.log();
+};
 
 // Main review command
 program
@@ -481,7 +469,29 @@ program
     "--keep-alive",
     "Keep server running even after browser tab is closed"
   )
+  .option("--config", "Configure lgtm settings")
+  .option("--upgrade", "Upgrade lgtm to the latest version")
+  .option(
+    "--canary",
+    "Switch to canary (bleeding edge) builds (use with --upgrade)"
+  )
+  .option("--stable", "Switch to stable builds (use with --upgrade)")
+  .option("--version", "Show detailed version information")
   .action(async (target, options) => {
+    // Handle management flags before review logic
+    if (options.version) {
+      runVersion();
+      return;
+    }
+    if (options.config) {
+      await runConfig();
+      return;
+    }
+    if (options.upgrade) {
+      await runUpgrade({ canary: options.canary, stable: options.stable });
+      return;
+    }
+
     const spinner = ora();
     const generationStartedAt = Date.now();
     resetLLMUsage();
@@ -520,7 +530,7 @@ program
         if (!getUserDefaultModel()) {
           console.error(
             chalk.red(
-              "No default model configured. Run `lgtm config` or pass `-m <model>`."
+              "No default model configured. Run `lgtm --config` or pass `-m <model>`."
             )
           );
           process.exit(1);

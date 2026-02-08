@@ -59,7 +59,7 @@ sudo mv lgtm-darwin-arm64 /usr/local/bin/lgtm
 `lgtm` uses LLMs to generate detailed analysis. Configure your API key(s) using the interactive config:
 
 ```bash
-lgtm config
+lgtm --config
 ```
 
 This stores keys securely in your system keychain. Alternatively, set environment variables:
@@ -105,14 +105,14 @@ lgtm <target> --no-llm
 lgtm <target> --fresh
 ```
 
-### Commands
+### Management Flags
 
 ```bash
-lgtm config               # Configure API keys (Anthropic, OpenAI, Gemini)
-lgtm upgrade              # Upgrade to latest version
-lgtm upgrade --canary     # Switch to canary (bleeding edge) builds
-lgtm upgrade --stable     # Switch to stable builds
-lgtm version              # Show detailed version information
+lgtm --config               # Configure API keys (Anthropic, OpenAI, Gemini)
+lgtm --upgrade              # Upgrade to latest version
+lgtm --upgrade --canary     # Switch to canary (bleeding edge) builds
+lgtm --upgrade --stable     # Switch to stable builds
+lgtm --version              # Show detailed version information
 ```
 
 ### Options
