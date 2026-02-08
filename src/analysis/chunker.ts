@@ -1,6 +1,5 @@
 import { PRFile } from "../github/pr.js";
 import type { ReviewQuestion } from "./analyzer.js";
-import { splitChangesetsWithLLM } from "../llm/changeset-splitter.js";
 import { createStableChangeGroupId } from "./change-id.js";
 
 export interface ChunkOptions {
@@ -23,6 +22,20 @@ export interface FileDiff {
   hunks: DiffHunk[];
 }
 
+export type RiskLevel = "low" | "medium" | "high" | "critical";
+
+export type SuggestionSeverity =
+  | "nit"
+  | "suggestion"
+  | "important"
+  | "critical";
+
+export interface ReviewSuggestion {
+  severity: SuggestionSeverity;
+  text: string;
+  file?: string;
+}
+
 export interface ChangeGroup {
   id: string;
   title: string;
@@ -32,6 +45,9 @@ export interface ChangeGroup {
   symbolsIntroduced?: string[];
   symbolsModified?: string[];
   reviewQuestions?: ReviewQuestion[];
+  riskLevel?: RiskLevel;
+  verdict?: string;
+  suggestions?: ReviewSuggestion[];
   changeType:
     | "feature"
     | "refactor"
@@ -137,26 +153,14 @@ export function parseDiff(diff: string): FileDiff[] {
 }
 
 /**
- * Group diff hunks into logical change groups
+ * Group diff hunks into logical change groups (heuristic only).
+ * LLM-powered splitting + review is handled by the analyzer via review.ts.
  */
 export async function chunkDiff(
   diff: string,
   files: PRFile[],
-  options: ChunkOptions = {}
+  _options: ChunkOptions = {}
 ): Promise<ChangeGroup[]> {
-  const { useLLM = false } = options;
-
-  // Use LLM-powered splitting if enabled
-  if (useLLM) {
-    try {
-      return await splitChangesetsWithLLM(diff);
-    } catch (error) {
-      console.warn("LLM chunking failed, falling back to heuristic:", error);
-      // Fall through to heuristic approach
-    }
-  }
-
-  // Heuristic fallback: group by directory/module
   return chunkDiffHeuristic(diff);
 }
 

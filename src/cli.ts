@@ -40,7 +40,6 @@ import {
   resetLLMUsage,
   getFormattedRunningTotal,
 } from "./llm/usage.js";
-import type { ProgressInfo } from "./analysis/analyzer.js";
 import { calculateTokenlensCost } from "./llm/tokenlens.js";
 import { ModelChoice } from "./config.js";
 import {
@@ -473,13 +472,6 @@ program
           );
           prData = cached.prData;
 
-          const updateSpinnerWithProgress = (info: ProgressInfo) => {
-            const tokens = getFormattedRunningTotal();
-            spinner.text = `${info.step} ${chalk.gray(
-              `(${info.current}/${info.total}) (${tokens} tokens)`
-            )}`;
-          };
-
           spinner.start("Checking for missing analysis...");
           const updateResult = await ensureAnalysis(
             prData,
@@ -488,16 +480,16 @@ program
               includeTraces: options.findTraces,
               verbose: options.verbose,
               model: selectedModel,
-              onProgress: cacheKey
-                ? (partialAnalysis) =>
-                    setCache(cacheKey!, prData!, partialAnalysis)
-                : undefined,
-              onStepProgress: updateSpinnerWithProgress,
+              onStepProgress: (info) => {
+                const tokens = getFormattedRunningTotal();
+                spinner.text = `${info.step} ${chalk.gray(
+                  `(${tokens} tokens)`
+                )}`;
+              },
               onChangesetsCreated: (count) => {
                 spinner.succeed(
-                  `Broken PR into ${count} changeset${count === 1 ? "" : "s"}`
+                  `Reviewed ${count} changeset${count === 1 ? "" : "s"}`
                 );
-                spinner.start("Answering review questions...");
               },
             },
             cached.analysis
@@ -559,28 +551,22 @@ program
             : `Fetched PR: ${diffDescription}`
         );
 
-        // Analyze changes
-        const updateSpinnerWithProgress = (info: ProgressInfo) => {
-          const tokens = getFormattedRunningTotal();
-          spinner.text = `${info.step} ${chalk.gray(
-            `(${info.current}/${info.total}) (${tokens} tokens)`
-          )}`;
-        };
-
-        spinner.start("Analyzing changes...");
+        // Analyze changes (single LLM call + parallel blame)
+        spinner.start("Reviewing changes (single-pass)...");
         analysis = await analyzeChanges(prData, {
           useLLM: options.llm !== false,
           verbose: options.verbose,
           model: selectedModel,
-          onProgress: cacheKey
-            ? (partialAnalysis) => setCache(cacheKey!, prData!, partialAnalysis)
-            : undefined,
-          onStepProgress: updateSpinnerWithProgress,
+          onStepProgress: (info) => {
+            const tokens = getFormattedRunningTotal();
+            spinner.text = `${info.step} ${chalk.gray(`(${tokens} tokens)`)}`;
+          },
           onChangesetsCreated: (count) => {
             spinner.succeed(
-              `Broken PR into ${count} changeset${count === 1 ? "" : "s"}`
+              `Reviewed ${count} changeset${count === 1 ? "" : "s"} across ${
+                analysis?.filesChanged ?? prData!.files.length
+              } files`
             );
-            spinner.start("Answering review questions...");
           },
         });
         const finalTokens = getFormattedRunningTotal();

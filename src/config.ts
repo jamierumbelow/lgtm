@@ -6,5 +6,3 @@ export enum ModelChoice {
 }
 
 export const DEFAULT_MODEL = ModelChoice.ClaudeSonnet45;
-
-export const DEFAULT_CHANGESET_QUESTION_CONCURRENCY = 3;

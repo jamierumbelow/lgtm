@@ -1,5 +1,5 @@
 import { Analysis, ReviewQuestion } from "../analysis/analyzer.js";
-import { ChangeGroup } from "../analysis/chunker.js";
+import { ChangeGroup, ReviewSuggestion } from "../analysis/chunker.js";
 import { marked } from "marked";
 
 export function renderHTML(analysis: Analysis): string {
@@ -725,6 +725,172 @@ export function renderHTML(analysis: Analysis): string {
       font-weight: 500;
       font-family: 'SF Mono', Consolas, monospace;
     }
+
+    /* Risk Level Badges */
+    .risk-badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .risk-badge.low { background: #3fb95022; color: #3fb950; }
+    .risk-badge.medium { background: #d2992233; color: #d29922; }
+    .risk-badge.high { background: #f8514933; color: #f85149; }
+    .risk-badge.critical { background: #f85149; color: #fff; }
+
+    /* Verdict */
+    .verdict {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text);
+      padding: 12px 16px;
+      background: var(--bg);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 16px;
+    }
+
+    .verdict.risk-high {
+      border-left-color: var(--red);
+    }
+
+    .verdict.risk-critical {
+      border-left-color: var(--red);
+      background: var(--red-bg);
+    }
+
+    .verdict.risk-low {
+      border-left-color: var(--green);
+    }
+
+    /* Suggestions */
+    .suggestion-card {
+      display: flex;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .suggestion-severity {
+      flex-shrink: 0;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      height: fit-content;
+      margin-top: 2px;
+    }
+
+    .suggestion-severity.nit { background: #8b949e22; color: #8b949e; }
+    .suggestion-severity.suggestion { background: #58a6ff22; color: #58a6ff; }
+    .suggestion-severity.important { background: #d2992233; color: #d29922; }
+    .suggestion-severity.critical { background: #f85149; color: #fff; }
+
+    .suggestion-text {
+      color: var(--text-muted);
+    }
+
+    .suggestion-file {
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 11px;
+      color: var(--accent);
+      margin-top: 4px;
+    }
+
+    /* Executive Summary */
+    .executive-summary {
+      width: 100%;
+      margin-bottom: 40px;
+    }
+
+    .executive-summary-content {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text);
+      background: var(--bg-secondary);
+      padding: 24px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .executive-summary-content p {
+      margin-bottom: 12px;
+    }
+
+    .executive-summary-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    .review-guidance {
+      width: 100%;
+      margin-bottom: 40px;
+    }
+
+    .review-guidance-content {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text-muted);
+      padding: 16px 20px;
+      background: var(--bg-secondary);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 12px 12px 0;
+    }
+
+    .review-guidance-content p {
+      margin-bottom: 8px;
+    }
+
+    .review-guidance-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    .review-guidance-content strong {
+      color: var(--text);
+    }
+
+    /* Changeset list on summary */
+    .changeset-list {
+      width: 100%;
+      margin-bottom: 40px;
+    }
+
+    .changeset-list-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .changeset-list-item:last-child {
+      border-bottom: none;
+    }
+
+    .changeset-list-title {
+      flex: 1;
+      color: var(--text);
+    }
+
+    .changeset-list-verdict {
+      font-size: 12px;
+      color: var(--text-muted);
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -812,8 +978,11 @@ export function renderHTML(analysis: Analysis): string {
 }
 
 function renderSummarySlide(analysis: Analysis): string {
-  const descriptionHtml = analysis.description
-    ? marked.parse(analysis.description)
+  const summaryHtml = analysis.summary
+    ? marked.parse(analysis.summary)
+    : "";
+  const guidanceHtml = analysis.reviewGuidance
+    ? marked.parse(analysis.reviewGuidance)
     : "";
 
   return `
@@ -841,18 +1010,6 @@ function renderSummarySlide(analysis: Analysis): string {
             </div>
           </div>
 
-          ${
-            analysis.description
-              ? `
-            <div class="summary-description">
-              <div class="summary-description-content">
-                ${descriptionHtml}
-              </div>
-            </div>
-          `
-              : ""
-          }
-
           <div class="summary-stats">
             <div class="summary-stat">
               <div class="summary-stat-value">${analysis.filesChanged}</div>
@@ -874,11 +1031,73 @@ function renderSummarySlide(analysis: Analysis): string {
             </div>
           </div>
 
+          ${
+            analysis.summary
+              ? `
+            <div class="executive-summary">
+              <div class="meta-section-title">Summary</div>
+              <div class="executive-summary-content">
+                ${summaryHtml}
+              </div>
+            </div>
+          `
+              : ""
+          }
+
+          ${
+            analysis.reviewGuidance
+              ? `
+            <div class="review-guidance">
+              <div class="meta-section-title">Review Guidance</div>
+              <div class="review-guidance-content">
+                ${guidanceHtml}
+              </div>
+            </div>
+          `
+              : ""
+          }
+
+          ${renderChangesetList(analysis)}
+
           <div class="summary-hint">
             Press <kbd>→</kbd> or <kbd>j</kbd> to start reviewing
           </div>
         </div>
       </div>
+    </div>
+  `;
+}
+
+function renderChangesetList(analysis: Analysis): string {
+  if (analysis.changeGroups.length === 0) return "";
+
+  const items = analysis.changeGroups
+    .map(
+      (group, i) => `
+      <div class="changeset-list-item">
+        <span class="change-type ${group.changeType}">${group.changeType}</span>
+        ${
+          group.riskLevel
+            ? `<span class="risk-badge ${group.riskLevel}">${group.riskLevel}</span>`
+            : ""
+        }
+        <span class="changeset-list-title">${escapeHtml(group.title)}</span>
+        ${
+          group.verdict
+            ? `<span class="changeset-list-verdict" title="${escapeHtml(
+                group.verdict
+              )}">${escapeHtml(group.verdict)}</span>`
+            : ""
+        }
+      </div>
+    `
+    )
+    .join("");
+
+  return `
+    <div class="changeset-list">
+      <div class="meta-section-title">Changesets</div>
+      ${items}
     </div>
   `;
 }
@@ -907,10 +1126,27 @@ function renderSlide(
       <div class="meta-panel">
         <div class="meta-header">
           <div class="meta-title">${escapeHtml(group.title)}</div>
-          <span class="change-type ${group.changeType}">${
-    group.changeType
-  }</span>
+          <div style="display: flex; gap: 6px; align-items: center; margin-top: 4px;">
+            <span class="change-type ${group.changeType}">${group.changeType}</span>
+            ${
+              group.riskLevel
+                ? `<span class="risk-badge ${group.riskLevel}">${group.riskLevel} risk</span>`
+                : ""
+            }
+          </div>
         </div>
+
+        ${
+          group.verdict
+            ? `
+          <div class="meta-section">
+            <div class="verdict${group.riskLevel ? ` risk-${group.riskLevel}` : ""}">
+              ${escapeHtml(group.verdict)}
+            </div>
+          </div>
+        `
+            : ""
+        }
 
         ${
           group.description
@@ -924,6 +1160,8 @@ function renderSlide(
         `
             : ""
         }
+
+        ${renderSuggestions(group.suggestions)}
 
         <div class="meta-section">
           <div class="meta-section-title">Files (${group.files.length})</div>
@@ -995,6 +1233,46 @@ function renderSlide(
             : ""
         }
       </div>
+    </div>
+  `;
+}
+
+function renderSuggestions(suggestions?: ReviewSuggestion[]): string {
+  if (!suggestions || suggestions.length === 0) return "";
+
+  // Sort by severity: critical > important > suggestion > nit
+  const severityOrder: Record<string, number> = {
+    critical: 0,
+    important: 1,
+    suggestion: 2,
+    nit: 3,
+  };
+
+  const sorted = [...suggestions].sort(
+    (a, b) =>
+      (severityOrder[a.severity] ?? 4) - (severityOrder[b.severity] ?? 4)
+  );
+
+  return `
+    <div class="meta-section">
+      <div class="meta-section-title">Suggestions</div>
+      ${sorted
+        .map(
+          (s) => `
+        <div class="suggestion-card">
+          <span class="suggestion-severity ${s.severity}">${s.severity}</span>
+          <div>
+            <div class="suggestion-text">${escapeHtml(s.text)}</div>
+            ${
+              s.file
+                ? `<div class="suggestion-file">${escapeHtml(s.file)}</div>`
+                : ""
+            }
+          </div>
+        </div>
+      `
+        )
+        .join("")}
     </div>
   `;
 }
