@@ -620,6 +620,7 @@ program
 
       let prData: Awaited<ReturnType<typeof getPRData>> | undefined;
       let analysis: Awaited<ReturnType<typeof analyzeChanges>> | undefined;
+      let fromCache = false;
 
       // Check cache
       if (cacheKey && !options.fresh) {
@@ -632,6 +633,7 @@ program
             }`
           );
           prData = cached.prData;
+          fromCache = true;
 
           spinner.start("Checking for missing analysis...");
           let currentStep = "Checking for missing analysis...";
@@ -761,27 +763,28 @@ program
           spinner.succeed(`Found ${traces.length} potential session traces`);
         }
 
-        // Cache the results
+        // Set generation metadata before caching so it's preserved for future runs
+        const usageTotals = getLLMUsageTotals();
+        const usageRecords = getLLMUsageRecords();
+        const tokenlensCost = await calculateTokenlensCost(
+          usageRecords,
+          options.verbose ? console.warn : undefined
+        );
+        if (usageTotals.tokenCount > 0) {
+          analysis.tokenCount = usageTotals.tokenCount;
+        }
+        if (tokenlensCost !== undefined) {
+          analysis.costUsd = tokenlensCost;
+        } else if (usageTotals.costUsd > 0) {
+          analysis.costUsd = usageTotals.costUsd;
+        }
+        analysis.generationTimeMs = Date.now() - generationStartedAt;
+
+        // Cache the results (including generation metadata)
         if (cacheKey) {
           setCache(cacheKey, prData, analysis);
         }
       }
-
-      const usageTotals = getLLMUsageTotals();
-      const usageRecords = getLLMUsageRecords();
-      const tokenlensCost = await calculateTokenlensCost(
-        usageRecords,
-        options.verbose ? console.warn : undefined
-      );
-      if (usageTotals.tokenCount > 0) {
-        analysis.tokenCount = usageTotals.tokenCount;
-      }
-      if (tokenlensCost !== undefined) {
-        analysis.costUsd = tokenlensCost;
-      } else if (usageTotals.costUsd > 0) {
-        analysis.costUsd = usageTotals.costUsd;
-      }
-      analysis.generationTimeMs = Date.now() - generationStartedAt;
 
       // Render output
       spinner.start("Generating review...");
