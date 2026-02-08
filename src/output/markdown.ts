@@ -53,11 +53,12 @@ export function renderMarkdown(analysis: Analysis): string {
   // Change Groups
   lines.push("## Changes");
   lines.push("");
-  for (const group of analysis.changeGroups) {
+  for (let i = 0; i < analysis.changeGroups.length; i++) {
+    const group = analysis.changeGroups[i];
     const riskLabel = group.riskLevel
       ? ` \`${group.riskLevel.toUpperCase()} RISK\``
       : "";
-    lines.push(`### ${group.title}${riskLabel}`);
+    lines.push(`### #${i + 1} ${group.title}${riskLabel}`);
     lines.push("");
     lines.push(`**Type:** ${group.changeType}`);
     lines.push("");

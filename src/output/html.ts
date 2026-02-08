@@ -865,6 +865,14 @@ export function renderHTML(analysis: Analysis): string {
       margin-bottom: 40px;
     }
 
+    .changeset-number {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 2em;
+    }
+
     .changeset-list-item {
       display: flex;
       align-items: center;
@@ -978,9 +986,7 @@ export function renderHTML(analysis: Analysis): string {
 }
 
 function renderSummarySlide(analysis: Analysis): string {
-  const summaryHtml = analysis.summary
-    ? marked.parse(analysis.summary)
-    : "";
+  const summaryHtml = analysis.summary ? marked.parse(analysis.summary) : "";
   const guidanceHtml = analysis.reviewGuidance
     ? marked.parse(analysis.reviewGuidance)
     : "";
@@ -1075,6 +1081,7 @@ function renderChangesetList(analysis: Analysis): string {
     .map(
       (group, i) => `
       <div class="changeset-list-item">
+        <span class="changeset-number">#${i + 1}</span>
         <span class="change-type ${group.changeType}">${group.changeType}</span>
         ${
           group.riskLevel
@@ -1125,9 +1132,13 @@ function renderSlide(
       </div>
       <div class="meta-panel">
         <div class="meta-header">
-          <div class="meta-title">${escapeHtml(group.title)}</div>
+          <div class="meta-title"><span class="changeset-number">#${index}</span> ${escapeHtml(
+    group.title
+  )}</div>
           <div style="display: flex; gap: 6px; align-items: center; margin-top: 4px;">
-            <span class="change-type ${group.changeType}">${group.changeType}</span>
+            <span class="change-type ${group.changeType}">${
+    group.changeType
+  }</span>
             ${
               group.riskLevel
                 ? `<span class="risk-badge ${group.riskLevel}">${group.riskLevel} risk</span>`
@@ -1140,7 +1151,9 @@ function renderSlide(
           group.verdict
             ? `
           <div class="meta-section">
-            <div class="verdict${group.riskLevel ? ` risk-${group.riskLevel}` : ""}">
+            <div class="verdict${
+              group.riskLevel ? ` risk-${group.riskLevel}` : ""
+            }">
               ${escapeHtml(group.verdict)}
             </div>
           </div>

@@ -14,9 +14,9 @@ Be specific — don't just say "this PR makes changes to the codebase." Say what
 
 ## Review Guidance
 
-A short paragraph (2-4 sentences) telling the reviewer where to focus their time. Reference specific changesets by title. Tell them which changesets are safe to skim and which need careful attention. If there are any critical or high-risk changesets, mention them explicitly.
+A short paragraph (2-4 sentences) telling the reviewer where to focus their time. Reference specific changesets by their number (e.g. **#3**) rather than repeating the full title — the numbers correspond to the changeset list. Tell them which changesets are safe to skim and which need careful attention. If there are any critical or high-risk changesets, mention them explicitly.
 
 Example good guidance:
-"Start with **Add rate limiting to auth endpoints** (high risk) — this touches the security boundary and needs careful review of the token bucket implementation. The **Rename UserService methods** and **Update config schema** changesets are mechanical and safe to skim. **Add pagination to user list API** is medium risk; check the SQL query for N+1 issues."
+"Start with **#1** (high risk) — this touches the security boundary and needs careful review of the token bucket implementation. **#4** and **#5** are mechanical and safe to skim. **#3** is medium risk; check the SQL query for N+1 issues."
 
 Provide your answers in the structured format requested.
