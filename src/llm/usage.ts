@@ -16,6 +16,8 @@ interface LLMUsageTotals {
 
 let totals: LLMUsageTotals = { tokenCount: 0, costUsd: 0 };
 let records: LLMUsageRecord[] = [];
+let usageListeners: Array<(totals: LLMUsageTotals) => void> = [];
+let streamingEstimate = 0;
 
 function getNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
@@ -105,6 +107,8 @@ export function recordLLMUsage(
   model?: string,
   costLike?: unknown
 ): void {
+  streamingEstimate = 0;
+
   const tokens = extractTokens(usage);
   if (tokens.totalTokens > 0) {
     totals.tokenCount += tokens.totalTokens;
@@ -116,11 +120,37 @@ export function recordLLMUsage(
   }
 
   records.push({ ...tokens, model });
+  notifyListeners();
+}
+
+export function updateStreamingEstimate(estimatedTokens: number): void {
+  streamingEstimate = estimatedTokens;
+  notifyListeners();
+}
+
+function notifyListeners(): void {
+  const effective = {
+    tokenCount: totals.tokenCount + streamingEstimate,
+    costUsd: totals.costUsd,
+  };
+  for (const listener of usageListeners) {
+    listener(effective);
+  }
+}
+
+export function onUsageUpdated(
+  listener: (totals: LLMUsageTotals) => void
+): () => void {
+  usageListeners.push(listener);
+  return () => {
+    usageListeners = usageListeners.filter((l) => l !== listener);
+  };
 }
 
 export function resetLLMUsage(): void {
   totals = { tokenCount: 0, costUsd: 0 };
   records = [];
+  streamingEstimate = 0;
 }
 
 export function getLLMUsageTotals(): LLMUsageTotals {
@@ -142,5 +172,5 @@ export function formatTokenCount(count: number): string {
 }
 
 export function getFormattedRunningTotal(): string {
-  return formatTokenCount(totals.tokenCount);
+  return formatTokenCount(totals.tokenCount + streamingEstimate);
 }

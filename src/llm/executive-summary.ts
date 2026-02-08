@@ -82,10 +82,10 @@ function buildUserPrompt(
       const verdict = group.verdict ? `\n   Verdict: ${group.verdict}` : "";
       const files = group.files.slice(0, 5).join(", ");
       const moreFiles =
-        group.files.length > 5
-          ? ` (+${group.files.length - 5} more)`
-          : "";
-      return `${i + 1}. **${group.title}** (${group.changeType})${risk}${verdict}\n   Files: ${files}${moreFiles}`;
+        group.files.length > 5 ? ` (+${group.files.length - 5} more)` : "";
+      return `${i + 1}. **${group.title}** (${
+        group.changeType
+      })${risk}${verdict}\n   Files: ${files}${moreFiles}`;
     })
     .join("\n\n");
 

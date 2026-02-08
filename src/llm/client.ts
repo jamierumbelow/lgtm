@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateObject, streamObject } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -14,7 +14,7 @@ import {
   hasOpenAIApiKey,
   hasGoogleApiKey,
 } from "../secrets.js";
-import { recordLLMUsage } from "./usage.js";
+import { recordLLMUsage, updateStreamingEstimate } from "./usage.js";
 import { ModelChoice, DEFAULT_MODEL } from "../config.js";
 import { getModelSpec, addPromptSuffix, MODEL_SPECS } from "./models.js";
 import {
@@ -92,7 +92,13 @@ export async function generateStructured<T>(
       if (cached) {
         return cached;
       }
-      const result = await generateObject({
+      // Estimate input tokens from prompt size (~4 chars/token)
+      const estimatedInputTokens = Math.ceil(
+        (systemPrompt.length + userPrompt.length) / 4
+      );
+      updateStreamingEstimate(estimatedInputTokens);
+
+      const stream = streamObject({
         model: modelClient(modelSpec.modelId),
         system: systemPrompt,
         prompt: userPrompt,
@@ -101,15 +107,28 @@ export async function generateStructured<T>(
         maxTokens,
       });
 
+      // Count output characters as they stream for live token estimates
+      let outputChars = 0;
+      for await (const chunk of stream.fullStream) {
+        if (chunk.type === "text-delta") {
+          outputChars += chunk.textDelta.length;
+          const estimatedOutputTokens = Math.ceil(outputChars / 4);
+          updateStreamingEstimate(estimatedInputTokens + estimatedOutputTokens);
+        }
+      }
+
+      // Stream is done — record real usage (clears the estimate)
+      const usage = await stream.usage;
       recordLLMUsage(
-        result.usage,
+        usage,
         modelSpec.modelId,
-        (result as { cost?: number; costUsd?: number }).cost ??
-          (result as { cost?: number; costUsd?: number }).costUsd
+        (stream as unknown as { cost?: number; costUsd?: number }).cost ??
+          (stream as unknown as { cost?: number; costUsd?: number }).costUsd
       );
 
-      setCachedPromptResponse(cacheKey, result.object);
-      return result.object;
+      const result = await stream.object;
+      setCachedPromptResponse(cacheKey, result);
+      return result;
     } catch (error) {
       if (
         !isRateLimitError(error) ||

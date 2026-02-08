@@ -39,6 +39,7 @@ import {
   getLLMUsageTotals,
   resetLLMUsage,
   getFormattedRunningTotal,
+  onUsageUpdated,
 } from "./llm/usage.js";
 import { calculateTokenlensCost } from "./llm/tokenlens.js";
 import { ModelChoice } from "./config.js";
@@ -473,6 +474,12 @@ program
           prData = cached.prData;
 
           spinner.start("Checking for missing analysis...");
+          let currentStep = "Checking for missing analysis...";
+          const updateSpinnerTokens = () => {
+            const tokens = getFormattedRunningTotal();
+            spinner.text = `${currentStep} ${chalk.gray(`(${tokens} tokens)`)}`;
+          };
+          const unsubscribe = onUsageUpdated(updateSpinnerTokens);
           const updateResult = await ensureAnalysis(
             prData,
             {
@@ -481,10 +488,8 @@ program
               verbose: options.verbose,
               model: selectedModel,
               onStepProgress: (info) => {
-                const tokens = getFormattedRunningTotal();
-                spinner.text = `${info.step} ${chalk.gray(
-                  `(${tokens} tokens)`
-                )}`;
+                currentStep = info.step;
+                updateSpinnerTokens();
               },
               onChangesetsCreated: (count) => {
                 spinner.succeed(
@@ -494,6 +499,7 @@ program
             },
             cached.analysis
           );
+          unsubscribe();
           analysis = updateResult.analysis;
           if (updateResult.updated) {
             const finalTokens = getFormattedRunningTotal();
@@ -553,13 +559,19 @@ program
 
         // Analyze changes (single LLM call + parallel blame)
         spinner.start("Reviewing changes (single-pass)...");
+        let currentStep = "Reviewing changes (single-pass)...";
+        const updateSpinnerTokens = () => {
+          const tokens = getFormattedRunningTotal();
+          spinner.text = `${currentStep} ${chalk.gray(`(${tokens} tokens)`)}`;
+        };
+        const unsubscribe = onUsageUpdated(updateSpinnerTokens);
         analysis = await analyzeChanges(prData, {
           useLLM: options.llm !== false,
           verbose: options.verbose,
           model: selectedModel,
           onStepProgress: (info) => {
-            const tokens = getFormattedRunningTotal();
-            spinner.text = `${info.step} ${chalk.gray(`(${tokens} tokens)`)}`;
+            currentStep = info.step;
+            updateSpinnerTokens();
           },
           onChangesetsCreated: (count) => {
             spinner.succeed(
@@ -569,6 +581,7 @@ program
             );
           },
         });
+        unsubscribe();
         const finalTokens = getFormattedRunningTotal();
         spinner.succeed(
           `Analyzed ${analysis.changeGroups.length} changeset${
