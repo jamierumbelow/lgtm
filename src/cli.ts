@@ -371,6 +371,10 @@ program
   )
   .option("--verbose", "Enable verbose logging")
   .option("--fresh", "Bypass cache and fetch fresh data")
+  .option(
+    "--keep-alive",
+    "Keep server running even after browser tab is closed"
+  )
   .action(async (target, options) => {
     const spinner = ora();
     const generationStartedAt = Date.now();
@@ -652,12 +656,71 @@ program
             const port = await findAvailablePort(basePort);
             const reportUrl = `http://localhost:${port}/report/${reportId}`;
 
+            const autoClose = !options.keepAlive;
+
             console.log(chalk.cyan(`\n✨ Starting server at ${reportUrl}`));
             console.log(chalk.gray("Use ← → or j k to navigate"));
-            console.log(chalk.gray("Press Ctrl+C to stop\n"));
+            if (autoClose) {
+              console.log(
+                chalk.gray(
+                  "Server will stop when browser tab is closed (use --keep-alive to disable)\n"
+                )
+              );
+            } else {
+              console.log(chalk.gray("Press Ctrl+C to stop\n"));
+            }
+
+            // Inject client-side heartbeat script if auto-close is enabled
+            const servedHtml = autoClose
+              ? html.replace(
+                  "</body>",
+                  `<script>
+(function() {
+  setInterval(function() {
+    fetch('/heartbeat', { method: 'POST' }).catch(function() {});
+  }, 2000);
+  window.addEventListener('beforeunload', function() {
+    navigator.sendBeacon('/close');
+  });
+})();
+</script>
+</body>`
+                )
+              : html;
+
+            // Heartbeat tracking for auto-close
+            let lastHeartbeat = 0;
+            let heartbeatReceived = false;
+            let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
             // Start the server
             let cleanup: () => void;
+
+            // Handle Ctrl+C gracefully
+            const shutdown = () => {
+              if (heartbeatTimer) clearInterval(heartbeatTimer);
+              console.log(chalk.gray("\n\nShutting down server..."));
+              cleanup();
+              process.exit(0);
+            };
+
+            // Route handler shared between Bun and Node
+            const isHeartbeat = (pathname: string) =>
+              autoClose && pathname === "/heartbeat";
+            const isClose = (pathname: string) =>
+              autoClose && pathname === "/close";
+            const handleHeartbeat = () => {
+              lastHeartbeat = Date.now();
+              if (!heartbeatReceived) {
+                heartbeatReceived = true;
+                // Start checking for heartbeat timeout
+                heartbeatTimer = setInterval(() => {
+                  if (Date.now() - lastHeartbeat > 5000) {
+                    shutdown();
+                  }
+                }, 3000);
+              }
+            };
 
             if (typeof Bun !== "undefined" && Bun.serve) {
               const server = Bun.serve({
@@ -665,9 +728,17 @@ program
                 fetch(req: Request) {
                   const url = new URL(req.url);
                   if (url.pathname === `/report/${reportId}`) {
-                    return new Response(html, {
+                    return new Response(servedHtml, {
                       headers: { "Content-Type": "text/html" },
                     });
+                  }
+                  if (isHeartbeat(url.pathname)) {
+                    handleHeartbeat();
+                    return new Response("ok", { status: 200 });
+                  }
+                  if (isClose(url.pathname)) {
+                    setTimeout(shutdown, 100);
+                    return new Response("ok", { status: 200 });
                   }
                   // Redirect root to the report URL
                   if (url.pathname === "/") {
@@ -692,7 +763,15 @@ program
                 const url = new URL(req.url!, `http://localhost:${port}`);
                 if (url.pathname === `/report/${reportId}`) {
                   res.writeHead(200, { "Content-Type": "text/html" });
-                  res.end(html);
+                  res.end(servedHtml);
+                } else if (isHeartbeat(url.pathname)) {
+                  handleHeartbeat();
+                  res.writeHead(200);
+                  res.end("ok");
+                } else if (isClose(url.pathname)) {
+                  res.writeHead(200);
+                  res.end("ok");
+                  setTimeout(shutdown, 100);
                 } else if (url.pathname === "/") {
                   res.writeHead(302, { Location: reportUrl });
                   res.end();
@@ -718,13 +797,6 @@ program
                 stdio: "ignore",
               });
             }
-
-            // Handle Ctrl+C gracefully
-            const shutdown = () => {
-              console.log(chalk.gray("\n\nShutting down server..."));
-              cleanup();
-              process.exit(0);
-            };
 
             process.on("SIGINT", shutdown);
             process.on("SIGTERM", shutdown);
