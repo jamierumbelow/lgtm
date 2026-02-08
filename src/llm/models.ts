@@ -26,7 +26,7 @@ export const MODEL_SPECS: Record<ModelChoice, ModelSpec> = {
   },
   [ModelChoice.ClaudeOpus46]: {
     provider: "anthropic",
-    modelId: "claude-opus-4-6-20260205",
+    modelId: "claude-opus-4-6",
     promptSuffix: "claude-opus-4.5",
     label: "Claude Opus 4.6 (2026-02-05)",
   },
