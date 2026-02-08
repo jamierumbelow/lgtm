@@ -107,42 +107,6 @@ export function renderMarkdown(analysis: Analysis): string {
       );
       lines.push("");
     }
-
-    if (group.reviewQuestions && group.reviewQuestions.length > 0) {
-      lines.push("**Review Questions:**");
-      for (const question of group.reviewQuestions) {
-        lines.push(`- ${question.question}`);
-        if (question.answer) {
-          lines.push(`  ${question.answer}`);
-        } else if (question.context) {
-          lines.push(`  ${question.context}`);
-        } else {
-          lines.push("  *Analysis pending...*");
-        }
-      }
-      lines.push("");
-    }
-  }
-
-  // Questions
-  if (analysis.questions.length > 0) {
-    lines.push("## Review Questions");
-    lines.push("");
-    for (const question of analysis.questions) {
-      lines.push(`### ${question.question}`);
-      lines.push("");
-      if (question.answer) {
-        lines.push(question.answer);
-      } else if (question.context) {
-        lines.push("**Context:**");
-        lines.push("```");
-        lines.push(question.context);
-        lines.push("```");
-      } else {
-        lines.push("*Analysis pending...*");
-      }
-      lines.push("");
-    }
   }
 
   // Suggested Reviewers

@@ -13,70 +13,9 @@ import {
 import { createStableChangeGroupId } from "../analysis/change-id.js";
 import { trimHunkContent } from "./diff-context.js";
 import { isLLMExcludedFile, isLockfilePath } from "./file-filters.js";
-import type { ReviewQuestion } from "../analysis/analyzer.js";
 import { ModelChoice, getDefaultModel } from "../config.js";
 
-// All review question IDs — every changeset gets all questions answered
-// in the single combined call. We filter irrelevant ones post-hoc.
-const ALL_QUESTION_IDS = [
-  "failure-modes",
-  "input-domain",
-  "duplication",
-  "abstractions",
-  "invariants",
-  "error-handling",
-  "testing",
-  "performance",
-  "security-privacy",
-  "compatibility",
-  "observability",
-] as const;
-
-type QuestionId = (typeof ALL_QUESTION_IDS)[number];
-
-const QUESTION_LABELS: Record<QuestionId, string> = {
-  "failure-modes": "How can this fail? What's already handled?",
-  "input-domain": "What inputs does this change handle?",
-  duplication: "Does this add duplication?",
-  abstractions: "Do the abstractions make sense?",
-  invariants: "What invariants change or are added?",
-  "error-handling": "Are error paths fully handled?",
-  testing: "What tests were added or updated? What's untested?",
-  performance: "Any impact on latency, memory, or complexity?",
-  "security-privacy": "Does this touch sensitive data or trust boundaries?",
-  compatibility: "Any behavior or API changes that could break callers?",
-  observability: "Do we need new or updated logs, metrics, or traces?",
-};
-
-// Which questions are relevant per changeset type — used for post-filtering
-const RELEVANT_QUESTIONS: Readonly<
-  Record<ChangeGroup["changeType"], readonly QuestionId[]>
-> = {
-  feature: ALL_QUESTION_IDS,
-  bugfix: ["failure-modes", "error-handling", "testing", "compatibility"],
-  refactor: ["abstractions", "duplication", "performance", "compatibility"],
-  test: ["testing", "failure-modes"],
-  config: ["compatibility", "testing"],
-  docs: ["compatibility"],
-  types: ["compatibility", "invariants"],
-  unknown: ["failure-modes", "testing", "compatibility", "performance"],
-};
-
 // --- Zod Schemas ---
-
-const ReviewAnswersSchema = z.object({
-  "failure-modes": z.string(),
-  "input-domain": z.string(),
-  duplication: z.string(),
-  abstractions: z.string(),
-  invariants: z.string(),
-  "error-handling": z.string(),
-  testing: z.string(),
-  performance: z.string(),
-  "security-privacy": z.string(),
-  compatibility: z.string(),
-  observability: z.string(),
-});
 
 const SuggestionSchema = z.object({
   severity: z.enum(["nit", "suggestion", "important", "critical"]),
@@ -100,7 +39,6 @@ const ChangesetWithReviewSchema = z.object({
   ]),
   files: z.array(z.string()),
   hunkRefs: z.array(z.string()),
-  review: ReviewAnswersSchema,
   riskLevel: z.enum(["low", "medium", "high", "critical"]),
   verdict: z.string(),
   suggestions: z.array(SuggestionSchema),
@@ -129,9 +67,8 @@ export interface ReviewDiffResult {
 }
 
 /**
- * Single-pass review: splits the diff into changesets, answers all
- * review questions, AND generates the executive summary — all in one
- * LLM call. This eliminates the separate executive-summary round trip.
+ * Single-pass review: splits the diff into changesets, generates verdicts
+ * and suggestions, and produces the executive summary — all in one LLM call.
  */
 export async function reviewDiffWithLLM(
   diff: string,
@@ -217,7 +154,7 @@ ${excludedNote}
 
 ${diffContent}
 
-Please analyze this diff: split it into logical changesets and answer all review questions for each.`;
+Please analyze this diff and split it into logical changesets.`;
 }
 
 // --- File partitioning ---
@@ -264,19 +201,6 @@ function mapToChangeGroups(
     const symbolsIntroducedInfo = extractNewSymbolInfos(fileDiffs);
     const symbolsModifiedInfo = extractModifiedSymbolInfos(fileDiffs);
 
-    // Build review questions from the combined response, filtering to
-    // only the questions relevant for this changeset type.
-    const relevantIds = new Set(RELEVANT_QUESTIONS[changeType] ?? []);
-    const reviewQuestions: ReviewQuestion[] = ALL_QUESTION_IDS.filter((id) =>
-      relevantIds.has(id)
-    ).map((id) => ({
-      id,
-      question: QUESTION_LABELS[id],
-      category: "changeset" as const,
-      model: getDefaultModel(),
-      answer: cs.review[id]?.trim() || undefined,
-    }));
-
     // Map risk level
     const riskLevel: RiskLevel = (
       ["low", "medium", "high", "critical"].includes(cs.riskLevel)
@@ -302,7 +226,6 @@ function mapToChangeGroups(
       symbolsModified,
       symbolsIntroducedInfo,
       symbolsModifiedInfo,
-      reviewQuestions,
       riskLevel,
       verdict: cs.verdict?.trim() || undefined,
       suggestions: suggestions.length > 0 ? suggestions : undefined,

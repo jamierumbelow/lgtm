@@ -470,7 +470,7 @@ program
     "~/.claude"
   )
   .option("--cursor-dir <path>", "Path to Cursor history directory")
-  .option("--no-llm", "Skip LLM-powered analysis (descriptions, questions)")
+  .option("--no-llm", "Skip LLM-powered analysis")
   .option(
     "-m, --model <model>",
     "LLM model: claude-sonnet-4.5, claude-opus-4.5, claude-opus-4.6, gpt-5.2, gpt-5.3-codex, gemini-3-flash, claude-code, codex"

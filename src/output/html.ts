@@ -1,5 +1,9 @@
-import { Analysis, ReviewQuestion } from "../analysis/analyzer.js";
-import { ChangeGroup, ReviewSuggestion, SymbolInfo } from "../analysis/chunker.js";
+import { Analysis } from "../analysis/analyzer.js";
+import {
+  ChangeGroup,
+  ReviewSuggestion,
+  SymbolInfo,
+} from "../analysis/chunker.js";
 import { marked } from "marked";
 
 export function renderHTML(analysis: Analysis): string {
@@ -428,86 +432,6 @@ export function renderHTML(analysis: Analysis): string {
     }
 
     .meta-file-list li:last-child { border-bottom: none; }
-
-    .review-question-card {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      margin-bottom: 12px;
-      overflow: hidden;
-    }
-
-    .review-question-text {
-      padding: 12px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .review-question-text:hover { background: var(--bg-tertiary); }
-
-    .review-question-text .chevron {
-      transition: transform 0.2s;
-      color: var(--text-muted);
-    }
-
-    .review-question-card.expanded .chevron {
-      transform: rotate(180deg);
-    }
-
-    .review-question-answer {
-      display: none;
-      padding: 12px;
-      border-top: 1px solid var(--border);
-      font-size: 13px;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-
-    .review-question-card.expanded .review-question-answer {
-      display: block;
-    }
-
-    .review-question-answer p {
-      margin-bottom: 8px;
-    }
-
-    .review-question-answer p:last-child {
-      margin-bottom: 0;
-    }
-
-    .review-question-answer ul,
-    .review-question-answer ol {
-      margin: 8px 0;
-      padding-left: 20px;
-    }
-
-    .review-question-answer li {
-      margin-bottom: 4px;
-    }
-
-    .review-question-answer code {
-      background: var(--bg-tertiary);
-      padding: 1px 4px;
-      border-radius: 3px;
-      font-size: 12px;
-    }
-
-    .review-question-answer pre {
-      background: var(--bg-tertiary);
-      padding: 8px;
-      border-radius: 4px;
-      overflow-x: auto;
-      margin: 8px 0;
-    }
-
-    .review-question-answer pre code {
-      background: none;
-      padding: 0;
-    }
 
     .navigation {
       position: fixed;
@@ -1077,10 +1001,6 @@ export function renderHTML(analysis: Analysis): string {
       }
     });
 
-    function toggleQuestion(el) {
-      el.closest('.review-question-card').classList.toggle('expanded');
-    }
-
     // --- Symbol hover tooltip ---
     const tooltip = document.createElement('div');
     tooltip.className = 'symbol-tooltip';
@@ -1259,7 +1179,9 @@ function renderChangesetList(analysis: Analysis): string {
     .map((group, index) => {
       const slideIndex = index + 1;
       const verdict = group.verdict
-        ? `<span class="changeset-list-sep">\u00b7</span> <span class="changeset-list-verdict">${escapeHtml(group.verdict)}</span>`
+        ? `<span class="changeset-list-sep">\u00b7</span> <span class="changeset-list-verdict">${escapeHtml(
+            group.verdict
+          )}</span>`
         : "";
       const fileCount = group.files.length;
       const filesLabel = `${fileCount} file${fileCount === 1 ? "" : "s"}`;
@@ -1268,7 +1190,9 @@ function renderChangesetList(analysis: Analysis): string {
         <div class="changeset-list-item" onclick="showSlide(${slideIndex})">
           <div class="changeset-list-title">${escapeHtml(group.title)}</div>
           <div class="changeset-list-meta">
-            <span class="changeset-list-type ${group.changeType}">${group.changeType}</span>
+            <span class="changeset-list-type ${group.changeType}">${
+        group.changeType
+      }</span>
             <span class="changeset-list-sep">\u00b7</span>
             <span class="changeset-list-files">${filesLabel}</span>
             ${verdict}
@@ -1298,7 +1222,6 @@ function renderSlide(
   analysis: Analysis
 ): string {
   const diffContent = renderDiff(group, index);
-  const relevantQuestions = getRelevantQuestions(group, analysis);
 
   return `
     <div class="slide" data-index="${index}">
@@ -1364,7 +1287,11 @@ function renderSlide(
           <div class="meta-section">
             <div class="meta-section-title">New Symbols</div>
             <div class="symbols">
-              ${renderSymbolTags(group.symbolsIntroduced, group.symbolsIntroducedInfo, index)}
+              ${renderSymbolTags(
+                group.symbolsIntroduced,
+                group.symbolsIntroducedInfo,
+                index
+              )}
             </div>
           </div>
         `
@@ -1377,45 +1304,17 @@ function renderSlide(
           <div class="meta-section">
             <div class="meta-section-title">Modified Symbols</div>
             <div class="symbols">
-              ${renderSymbolTags(group.symbolsModified, group.symbolsModifiedInfo, index)}
+              ${renderSymbolTags(
+                group.symbolsModified,
+                group.symbolsModifiedInfo,
+                index
+              )}
             </div>
           </div>
         `
             : ""
         }
 
-        ${
-          relevantQuestions.length
-            ? `
-          <div class="meta-section">
-            <div class="meta-section-title">Review Questions</div>
-            ${relevantQuestions
-              .map(
-                (q) => `
-              <div class="review-question-card">
-                <div class="review-question-text" onclick="toggleQuestion(this)">
-                  <span>${escapeHtml(q.question)}</span>
-                  <span class="chevron">▼</span>
-                </div>
-                <div class="review-question-answer">
-                  ${
-                    q.answer
-                      ? marked.parse(q.answer)
-                      : q.context
-                      ? `<pre style="white-space: pre-wrap; font-size: 12px;">${escapeHtml(
-                          q.context
-                        )}</pre>`
-                      : "<em>Analysis pending...</em>"
-                  }
-                </div>
-              </div>
-            `
-              )
-              .join("")}
-          </div>
-        `
-            : ""
-        }
       </div>
     </div>
   `;
@@ -1649,41 +1548,6 @@ function getFileStatus(
   return "modified";
 }
 
-function getRelevantQuestions(
-  group: ChangeGroup,
-  analysis: Analysis
-): ReviewQuestion[] {
-  // Use changeset-level questions stored on the group, not the global analysis questions
-  const questions = group.reviewQuestions ?? [];
-
-  // Structural change types (types, docs, config) don't have runtime behavior
-  // so questions about failure modes and error handling don't apply
-  const structuralTypes = ["types", "docs", "config"];
-  const isStructural = structuralTypes.includes(group.changeType);
-
-  if (group.changeType === "test") {
-    return questions.filter((q) => ["input-domain"].includes(q.id));
-  }
-
-  if (isStructural) {
-    // For structural changes, focus on design and compatibility questions
-    return questions
-      .filter((q) =>
-        ["abstractions", "duplication", "compatibility"].includes(q.id)
-      )
-      .slice(0, 3);
-  }
-
-  // For functional changes (feature, bugfix, refactor, unknown)
-  const relevant = ["failure-modes", "input-domain", "error-handling"];
-
-  if (group.symbolsIntroduced?.length) {
-    relevant.push("abstractions");
-  }
-
-  return questions.filter((q) => relevant.includes(q.id)).slice(0, 4);
-}
-
 function renderGenerationMeta(analysis: Analysis): string {
   const hasMetadata =
     analysis.generationTimeMs || analysis.tokenCount || analysis.costUsd;
@@ -1759,8 +1623,14 @@ function renderSymbolTags(
   if (infos?.length) {
     return infos
       .map((sym) => {
-        const targetId = `line-${slideIndex}-${safeFileId(sym.file)}-${sym.newLine}`;
-        return `<span class="symbol symbol-interactive" data-target-line="${targetId}" data-signature="${escapeHtml(sym.signature)}" data-file="${escapeHtml(sym.file)}" data-line="${sym.newLine}">${escapeHtml(sym.name)}</span>`;
+        const targetId = `line-${slideIndex}-${safeFileId(sym.file)}-${
+          sym.newLine
+        }`;
+        return `<span class="symbol symbol-interactive" data-target-line="${targetId}" data-signature="${escapeHtml(
+          sym.signature
+        )}" data-file="${escapeHtml(sym.file)}" data-line="${
+          sym.newLine
+        }">${escapeHtml(sym.name)}</span>`;
       })
       .join("");
   }

@@ -7,17 +7,6 @@ import { reviewDiffWithLLM, ReviewDiffResult } from "../llm/review.js";
 import { generateExecutiveSummary } from "../llm/executive-summary.js";
 import { ModelChoice } from "../config.js";
 
-export type ReviewQuestionCategory = "changeset";
-
-export interface ReviewQuestion {
-  id: string;
-  question: string;
-  category: ReviewQuestionCategory;
-  model?: ModelChoice;
-  answer?: string;
-  context?: string;
-}
-
 export interface Analysis {
   // Metadata
   prUrl?: string;
@@ -35,9 +24,6 @@ export interface Analysis {
 
   // Semantic breakdown
   changeGroups: ChangeGroup[];
-
-  // Standard questions
-  questions: ReviewQuestion[];
 
   // Executive summary — high-level narrative of the PR
   summary?: string;
@@ -76,7 +62,6 @@ interface AnalyzeOptions {
 
 export interface AnalysisShape {
   version: number;
-  requiredQuestionIds: string[];
   requireTraces: boolean;
 }
 
@@ -84,9 +69,7 @@ export interface AnalysisCoverage {
   needsChangeGroups: boolean;
   needsContributors: boolean;
   needsSuggestedReviewers: boolean;
-  needsQuestions: boolean;
-  missingQuestionIds: string[];
-  needsChangesetQuestions: boolean;
+  needsChangesetReviews: boolean;
   needsTraces: boolean;
 }
 
@@ -103,7 +86,6 @@ export function getAnalysisShape(
 ): AnalysisShape {
   return {
     version: ANALYSIS_SHAPE_VERSION,
-    requiredQuestionIds: [],
     requireTraces: options.includeTraces ?? false,
   };
 }
@@ -112,23 +94,12 @@ export function getMissingAnalysisParts(
   analysis: Analysis | undefined,
   shape: AnalysisShape
 ): AnalysisCoverage {
-  const existingQuestions = analysis?.questions ?? [];
-  const existingQuestionIds = new Set(
-    existingQuestions.map((question) => question.id)
-  );
-  const missingQuestionIds = shape.requiredQuestionIds.filter(
-    (id) => !existingQuestionIds.has(id)
-  );
-
   const needsChangeGroups = !analysis?.changeGroups;
   const needsContributors = !analysis?.contributors;
   const needsSuggestedReviewers = !analysis?.suggestedReviewers;
-  const needsQuestions = !analysis?.questions || missingQuestionIds.length > 0;
-  const needsChangesetQuestions =
+  const needsChangesetReviews =
     !analysis?.changeGroups ||
-    analysis.changeGroups.some(
-      (group) => !group.reviewQuestions || group.reviewQuestions.length === 0
-    );
+    analysis.changeGroups.some((group) => !group.verdict);
   const needsTraces =
     shape.requireTraces && (!analysis?.traces || analysis.traces.length === 0);
 
@@ -136,9 +107,7 @@ export function getMissingAnalysisParts(
     needsChangeGroups,
     needsContributors,
     needsSuggestedReviewers,
-    needsQuestions,
-    missingQuestionIds,
-    needsChangesetQuestions,
+    needsChangesetReviews,
     needsTraces,
   };
 }
@@ -146,9 +115,9 @@ export function getMissingAnalysisParts(
 /**
  * Analyze changes in a PR/diff.
  *
- * When LLM is enabled, this makes a SINGLE LLM call that both splits the diff
- * into changesets AND answers all review questions — replacing the old N+1 call
- * pipeline. Blame is run in parallel with the LLM call.
+ * When LLM is enabled, this makes a SINGLE LLM call that splits the diff
+ * into changesets, generates verdicts and suggestions, and produces an
+ * executive summary. Blame is run in parallel with the LLM call.
  */
 export async function analyzeChanges(
   prData: PRData,
@@ -186,12 +155,6 @@ export async function analyzeChanges(
 
   const suggestedReviewers = buildSuggestedReviewers(prData, contributors);
 
-  // Collect all changeset questions into the top-level questions array
-  const questions = changeGroups.flatMap(
-    (group) =>
-      group.reviewQuestions?.filter((q) => q.category === "changeset") ?? []
-  );
-
   const analysis: Analysis = {
     prUrl: prData.url,
     title: prData.title,
@@ -204,7 +167,6 @@ export async function analyzeChanges(
     additions,
     deletions,
     changeGroups,
-    questions,
     contributors,
     suggestedReviewers,
     summary,
@@ -276,7 +238,7 @@ export async function ensureAnalysis(
     missing.needsChangeGroups ||
     missing.needsContributors ||
     missing.needsSuggestedReviewers ||
-    missing.needsChangesetQuestions;
+    missing.needsChangesetReviews;
 
   if (!needsUpdate && !needsSummary) {
     return { analysis: existing, updated: false, missing };
@@ -336,8 +298,8 @@ function calculateStats(prData: PRData): {
 }
 
 /**
- * When LLM is enabled, uses the single-pass review function that splits,
- * answers questions, AND generates the executive summary in one call.
+ * When LLM is enabled, uses the single-pass review function that splits
+ * the diff into changesets and generates the executive summary in one call.
  * Falls back to heuristic chunking when LLM is disabled.
  */
 async function buildChangeGroupsWithReview(

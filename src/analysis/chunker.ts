@@ -1,5 +1,4 @@
 import { PRFile } from "../github/pr.js";
-import type { ReviewQuestion } from "./analyzer.js";
 import { createStableChangeGroupId } from "./change-id.js";
 
 export interface ChunkOptions {
@@ -53,7 +52,6 @@ export interface ChangeGroup {
   symbolsModified?: string[];
   symbolsIntroducedInfo?: SymbolInfo[];
   symbolsModifiedInfo?: SymbolInfo[];
-  reviewQuestions?: ReviewQuestion[];
   riskLevel?: RiskLevel;
   verdict?: string;
   suggestions?: ReviewSuggestion[];
