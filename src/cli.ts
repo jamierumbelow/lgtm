@@ -63,6 +63,7 @@ import {
   COMMIT_SHA,
   BUILD_DATE,
 } from "./version.js";
+import { runInstallSkill, runUninstallSkill } from "./skill.js";
 
 const program = new Command();
 
@@ -477,6 +478,11 @@ program
   )
   .option("--stable", "Switch to stable builds (use with --upgrade)")
   .option("--version", "Show detailed version information")
+  .option(
+    "--install-skill",
+    "Install lgtm agent skill (~/.claude/skills, ~/.codex/skills)"
+  )
+  .option("--uninstall-skill", "Remove lgtm agent skill")
   .action(async (target, options) => {
     // Handle management flags before review logic
     if (options.version) {
@@ -489,6 +495,14 @@ program
     }
     if (options.upgrade) {
       await runUpgrade({ canary: options.canary, stable: options.stable });
+      return;
+    }
+    if (options.installSkill) {
+      await runInstallSkill();
+      return;
+    }
+    if (options.uninstallSkill) {
+      await runUninstallSkill();
       return;
     }
 
