@@ -9,6 +9,7 @@ import { marked } from "marked";
 export function renderHTML(analysis: Analysis): string {
   const summarySlide = renderSummarySlide(analysis);
   const reviewSlides = renderReviewSlides(analysis);
+  const changesetNav = renderChangesetNav(analysis);
   const totalSlides = analysis.changeGroups.length + 1; // +1 for summary slide
 
   return `<!DOCTYPE html>
@@ -223,7 +224,7 @@ export function renderHTML(analysis: Analysis): string {
       flex: 1;
       overflow: auto;
       padding: 24px;
-      padding-top: 80px;
+      padding-top: 68px;
       border-right: 1px solid var(--border);
     }
 
@@ -231,7 +232,7 @@ export function renderHTML(analysis: Analysis): string {
       width: 400px;
       overflow: auto;
       padding: 24px;
-      padding-top: 80px;
+      padding-top: 68px;
       background: var(--bg-secondary);
     }
 
@@ -503,7 +504,7 @@ export function renderHTML(analysis: Analysis): string {
 
     .progress-bar {
       position: fixed;
-      top: 0;
+      top: 44px;
       left: 0;
       height: 3px;
       background: var(--accent);
@@ -533,7 +534,7 @@ export function renderHTML(analysis: Analysis): string {
       justify-content: flex-start;
       width: 100%;
       height: 100%;
-      padding: 80px 40px 120px;
+      padding: 68px 40px 120px;
       overflow-y: auto;
     }
 
@@ -929,12 +930,100 @@ export function renderHTML(analysis: Analysis): string {
       font-family: 'SF Mono', Consolas, monospace;
       font-size: 11px;
     }
+
+    /* Changeset Nav Bar */
+    .changeset-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 44px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: stretch;
+      z-index: 1000;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .changeset-nav::-webkit-scrollbar {
+      height: 3px;
+    }
+
+    .changeset-nav::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .changeset-nav::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    .changeset-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 16px;
+      white-space: nowrap;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      transition: all 0.15s;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+    }
+
+    .changeset-nav-item:hover {
+      background: var(--bg-tertiary);
+      color: var(--text);
+    }
+
+    .changeset-nav-item.active {
+      border-bottom-color: var(--accent);
+      color: var(--text);
+      background: var(--bg-tertiary);
+    }
+
+    .changeset-nav-num {
+      font-weight: 600;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 14px;
+      text-align: center;
+    }
+
+    .changeset-nav-item.active .changeset-nav-num {
+      color: var(--accent);
+    }
+
+    .changeset-nav-title {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .changeset-nav-kbd {
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 9px;
+      padding: 1px 4px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
   </style>
 </head>
 <body>
   <!-- Review Mode -->
   <div id="review-mode">
     <div class="progress-bar" id="progress"></div>
+    ${changesetNav}
     <div class="slides-container" id="slides">
       ${summarySlide}
       ${reviewSlides}
@@ -950,7 +1039,7 @@ export function renderHTML(analysis: Analysis): string {
         Next <span>→</span>
       </button>
       <div class="keyboard-hint">
-        <kbd>←</kbd> <kbd>→</kbd> or <kbd>j</kbd> <kbd>k</kbd> to navigate
+        <kbd>←</kbd> <kbd>→</kbd> to navigate · <kbd>⌘</kbd><kbd>0-9</kbd> to jump
       </div>
     </nav>
   </div>
@@ -983,6 +1072,17 @@ export function renderHTML(analysis: Analysis): string {
       document.getElementById('prev-btn').disabled = index === 0;
       document.getElementById('next-btn').disabled = index === totalSlides - 1;
       document.getElementById('progress').style.width = ((index + 1) / totalSlides * 100) + '%';
+
+      // Update changeset nav active state
+      document.querySelectorAll('.changeset-nav-item').forEach(item => {
+        item.classList.toggle('active', parseInt(item.dataset.slide) === index);
+      });
+
+      // Scroll active nav item into view
+      const activeNavItem = document.querySelector('.changeset-nav-item.active');
+      if (activeNavItem) {
+        activeNavItem.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      }
     }
 
     function nextSlide() {
@@ -994,6 +1094,16 @@ export function renderHTML(analysis: Analysis): string {
     }
 
     document.addEventListener('keydown', (e) => {
+      // Cmd+number (0-9) to jump to changeset
+      if (e.metaKey && e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        const num = parseInt(e.key);
+        if (num < totalSlides) {
+          showSlide(num);
+        }
+        return;
+      }
+
       if (e.key === 'ArrowRight' || e.key === 'j' || e.key === 'l') {
         nextSlide();
       } else if (e.key === 'ArrowLeft' || e.key === 'k' || e.key === 'h') {
@@ -1170,6 +1280,37 @@ function renderSummarySlide(analysis: Analysis): string {
       </div>
     </div>
   `;
+}
+
+function renderChangesetNav(analysis: Analysis): string {
+  if (analysis.changeGroups.length === 0) return "";
+
+  const items = analysis.changeGroups
+    .map((group, index) => {
+      const slideIndex = index + 1;
+      const kbdHint =
+        slideIndex <= 9
+          ? `<span class="changeset-nav-kbd">\u2318${slideIndex}</span>`
+          : "";
+
+      return `<div class="changeset-nav-item" data-slide="${slideIndex}" onclick="showSlide(${slideIndex})" title="${escapeHtml(
+        group.title
+      )}">
+        <span class="changeset-nav-num">${slideIndex}</span>
+        <span class="changeset-nav-title">${escapeHtml(group.title)}</span>
+        ${kbdHint}
+      </div>`;
+    })
+    .join("");
+
+  return `<nav class="changeset-nav" id="changeset-nav">
+    <div class="changeset-nav-item" data-slide="0" onclick="showSlide(0)" title="Summary">
+      <span class="changeset-nav-num">\u2302</span>
+      <span class="changeset-nav-title">Summary</span>
+      <span class="changeset-nav-kbd">\u23180</span>
+    </div>
+    ${items}
+  </nav>`;
 }
 
 function renderChangesetList(analysis: Analysis): string {

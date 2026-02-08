@@ -1,4 +1,11 @@
-import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from "fs";
+import {
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  unlinkSync,
+} from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { createHash } from "crypto";
@@ -72,6 +79,9 @@ export function setCachedPromptResponse<T>(key: string, value: T): void {
   try {
     writeFileSync(cachePath, JSON.stringify(value, null, 2));
   } catch (error) {
-    console.error(`[lgtm] Failed to write prompt cache to ${cachePath}:`, error);
+    console.error(
+      `[lgtm] Failed to write prompt cache to ${cachePath}:`,
+      error
+    );
   }
 }
