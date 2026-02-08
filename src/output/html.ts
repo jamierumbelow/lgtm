@@ -502,16 +502,6 @@ export function renderHTML(analysis: Analysis): string {
       margin: 0 2px;
     }
 
-    .progress-bar {
-      position: fixed;
-      top: 44px;
-      left: 0;
-      height: 3px;
-      background: var(--accent);
-      transition: width 0.2s ease;
-      z-index: 1001;
-    }
-
     .empty-state {
       display: flex;
       align-items: center;
@@ -1022,7 +1012,6 @@ export function renderHTML(analysis: Analysis): string {
 <body>
   <!-- Review Mode -->
   <div id="review-mode">
-    <div class="progress-bar" id="progress"></div>
     ${changesetNav}
     <div class="slides-container" id="slides">
       ${summarySlide}
@@ -1071,8 +1060,6 @@ export function renderHTML(analysis: Analysis): string {
       document.getElementById('current-slide').textContent = index + 1;
       document.getElementById('prev-btn').disabled = index === 0;
       document.getElementById('next-btn').disabled = index === totalSlides - 1;
-      document.getElementById('progress').style.width = ((index + 1) / totalSlides * 100) + '%';
-
       // Update changeset nav active state
       document.querySelectorAll('.changeset-nav-item').forEach(item => {
         item.classList.toggle('active', parseInt(item.dataset.slide) === index);
