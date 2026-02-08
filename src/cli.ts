@@ -18,7 +18,7 @@ import { findTraces } from "./analysis/trace-finder.js";
 import { renderMarkdown } from "./output/markdown.js";
 import { renderHTML } from "./output/html.js";
 import { renderJSON } from "./output/json.js";
-import { writeFileSync } from "fs";
+import { writeFileSync, readFileSync } from "fs";
 import { createServer } from "http";
 import { createServer as createNetServer } from "net";
 import { randomUUID } from "crypto";
@@ -64,6 +64,23 @@ import {
   BUILD_DATE,
 } from "./version.js";
 import { runInstallSkill, runUninstallSkill } from "./skill.js";
+
+// Detect WSL by checking for Microsoft in the kernel version
+const isWSL = (): boolean => {
+  try {
+    return readFileSync("/proc/version", "utf-8").includes("microsoft");
+  } catch {
+    return false;
+  }
+};
+
+// Returns [command, ...args] to open a URL in the user's browser
+const getOpenBrowserArgs = (url: string): string[] => {
+  if (process.platform === "darwin") return ["open", url];
+  if (process.platform === "win32") return ["cmd.exe", "/c", "start", "", url];
+  if (isWSL()) return ["cmd.exe", "/c", "start", "", url.replace(/[&^%]/g, "^$&")];
+  return ["xdg-open", url];
+};
 
 const program = new Command();
 
@@ -907,13 +924,8 @@ program
               cleanup = () => server.stop();
 
               // Open the browser
-              const openCommand =
-                process.platform === "darwin"
-                  ? "open"
-                  : process.platform === "win32"
-                  ? "start"
-                  : "xdg-open";
-              Bun.spawn([openCommand, reportUrl]);
+              const openArgs = getOpenBrowserArgs(reportUrl);
+              Bun.spawn(openArgs);
             } else {
               const server = createServer((req, res) => {
                 const url = new URL(req.url!, `http://localhost:${port}`);
@@ -942,13 +954,8 @@ program
 
               // Open the browser using child_process for Node
               const { spawn } = await import("child_process");
-              const openCommand =
-                process.platform === "darwin"
-                  ? "open"
-                  : process.platform === "win32"
-                  ? "start"
-                  : "xdg-open";
-              spawn(openCommand, [reportUrl], {
+              const [openCmd, ...openCmdArgs] = getOpenBrowserArgs(reportUrl);
+              spawn(openCmd, openCmdArgs, {
                 detached: true,
                 stdio: "ignore",
               });
