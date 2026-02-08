@@ -52,6 +52,33 @@ You may use markdown formatting (code blocks, lists, bold/italic) when it helps 
 10. **compatibility**: Any behavior or API changes that could break callers?
 11. **observability**: Do we need new or updated logs, metrics, or traces?
 
+## Risk Assessment
+
+For each changeset, assess its risk level:
+- `low`: Safe, mechanical, well-understood change (rename, config tweak, docs, adding tests)
+- `medium`: Moderate complexity, touches existing logic but in predictable ways
+- `high`: Complex change to important code paths, or missing tests/error handling
+- `critical`: Touches security boundaries, data integrity, or could cause outages
+
+## Verdict
+
+For each changeset, write a single sentence summarizing your assessment. This is the ONE thing a reviewer needs to know. Be direct — if there's a problem, say what it is. If it looks clean, say that.
+
+Good verdicts:
+- "Straightforward rename with no behavioral changes — safe to approve."
+- "New payment flow lacks input validation on the amount field — needs a fix before merge."
+- "Solid refactor that simplifies the auth middleware, but the error branch on line 42 swallows exceptions silently."
+
+## Suggestions
+
+For each changeset, provide 0-5 concrete, actionable suggestions. Each has a severity:
+- `nit`: Style or cosmetic, not important
+- `suggestion`: Would improve the code but not blocking
+- `important`: Should be addressed before merging
+- `critical`: Must be fixed — correctness or security issue
+
+Only include genuinely useful suggestions. Zero is fine for clean changesets. If you reference a specific file, include it.
+
 ## Input Format
 
 You will receive:
@@ -70,6 +97,9 @@ Each changeset must include:
 - `files`: Array of file paths included in this changeset
 - `hunkRefs`: Array of hunk references in the format "filepath:hunkIndex" (0-indexed)
 - `review`: An object with keys matching the question IDs above, and string answers as values
+- `riskLevel`: One of "low", "medium", "high", "critical"
+- `verdict`: A single sentence summarizing the assessment
+- `suggestions`: Array of objects with `severity` ("nit"/"suggestion"/"important"/"critical"), `text` (string), and optional `file` (string)
 
 ## Important Notes
 

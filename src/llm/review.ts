@@ -4,6 +4,8 @@ import {
   FileDiff,
   DiffHunk,
   ChangeGroup,
+  RiskLevel,
+  ReviewSuggestion,
   parseDiff,
 } from "../analysis/chunker.js";
 import { createStableChangeGroupId } from "../analysis/change-id.js";
@@ -74,6 +76,12 @@ const ReviewAnswersSchema = z.object({
   observability: z.string(),
 });
 
+const SuggestionSchema = z.object({
+  severity: z.enum(["nit", "suggestion", "important", "critical"]),
+  text: z.string(),
+  file: z.string().optional(),
+});
+
 const ChangesetWithReviewSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -91,6 +99,9 @@ const ChangesetWithReviewSchema = z.object({
   files: z.array(z.string()),
   hunkRefs: z.array(z.string()),
   review: ReviewAnswersSchema,
+  riskLevel: z.enum(["low", "medium", "high", "critical"]),
+  verdict: z.string(),
+  suggestions: z.array(SuggestionSchema),
 });
 
 const CombinedReviewResponseSchema = z.object({
@@ -164,9 +175,7 @@ function buildUserPrompt(
   fileDiffs: FileDiff[],
   excludedDiffs: FileDiff[]
 ): string {
-  const fileList = fileDiffs
-    .map((f) => `- ${f.path} (${f.status})`)
-    .join("\n");
+  const fileList = fileDiffs.map((f) => `- ${f.path} (${f.status})`).join("\n");
   const excludedFiles = excludedDiffs.map((f) => f.path);
 
   let diffContent = "";
@@ -251,6 +260,20 @@ function mapToChangeGroups(
       answer: cs.review[id]?.trim() || undefined,
     }));
 
+    // Map risk level
+    const riskLevel: RiskLevel = (
+      ["low", "medium", "high", "critical"].includes(cs.riskLevel)
+        ? cs.riskLevel
+        : "medium"
+    ) as RiskLevel;
+
+    // Map suggestions
+    const suggestions: ReviewSuggestion[] = (cs.suggestions ?? []).map((s) => ({
+      severity: s.severity,
+      text: s.text.trim(),
+      file: s.file,
+    }));
+
     return {
       id: createStableChangeGroupId({ files: cs.files, hunks }),
       title: cs.title,
@@ -261,6 +284,9 @@ function mapToChangeGroups(
       symbolsIntroduced,
       symbolsModified,
       reviewQuestions,
+      riskLevel,
+      verdict: cs.verdict?.trim() || undefined,
+      suggestions: suggestions.length > 0 ? suggestions : undefined,
     };
   });
 }
@@ -312,9 +338,7 @@ function extractNewSymbols(
       .map((l) => l.slice(1));
 
     for (const line of addedLines) {
-      const funcMatch = line.match(
-        /(?:function|const|let|var)\s+(\w+)\s*[=(]/
-      );
+      const funcMatch = line.match(/(?:function|const|let|var)\s+(\w+)\s*[=(]/);
       if (funcMatch) symbols.push(funcMatch[1]);
 
       const classMatch = line.match(/class\s+(\w+)/);

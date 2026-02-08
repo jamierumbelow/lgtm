@@ -4,6 +4,7 @@ import { ChangeGroup } from "./chunker.js";
 import { chunkDiff } from "./chunker.js";
 import { TraceMatch } from "./trace-finder.js";
 import { reviewDiffWithLLM } from "../llm/review.js";
+import { generateExecutiveSummary } from "../llm/executive-summary.js";
 import { ModelChoice, DEFAULT_MODEL } from "../config.js";
 
 export type ReviewQuestionCategory = "changeset";
@@ -187,7 +188,7 @@ export async function analyzeChanges(
       group.reviewQuestions?.filter((q) => q.category === "changeset") ?? []
   );
 
-  return {
+  const analysis: Analysis = {
     prUrl: prData.url,
     title: prData.title,
     description: prData.body,
@@ -203,6 +204,39 @@ export async function analyzeChanges(
     contributors,
     suggestedReviewers,
   };
+
+  // Generate executive summary if LLM is enabled and we have changesets
+  if (options.useLLM && changeGroups.length > 0) {
+    try {
+      options.onStepProgress?.({
+        step: "Generating executive summary...",
+        current: 2,
+        total: 2,
+      });
+      const executiveSummary = await generateExecutiveSummary(
+        changeGroups,
+        {
+          title: prData.title,
+          description: prData.body,
+          author: prData.author,
+          baseBranch: prData.baseBranch,
+          headBranch: prData.headBranch,
+          filesChanged: prData.files.length,
+          additions,
+          deletions,
+        },
+        { model: options.model, verbose: options.verbose }
+      );
+      analysis.summary = executiveSummary.summary;
+      analysis.reviewGuidance = executiveSummary.reviewGuidance;
+    } catch (error) {
+      if (options.verbose) {
+        console.warn("[lgtm] failed to generate executive summary:", error);
+      }
+    }
+  }
+
+  return analysis;
 }
 
 /**
@@ -229,14 +263,48 @@ export async function ensureAnalysis(
   const missing = getMissingAnalysisParts(existing, shape);
 
   // If nothing substantial is missing, return the existing analysis as-is
+  const needsSummary =
+    options.useLLM && (!existing.summary || !existing.reviewGuidance);
   const needsUpdate =
     missing.needsChangeGroups ||
     missing.needsContributors ||
     missing.needsSuggestedReviewers ||
     missing.needsChangesetQuestions;
 
-  if (!needsUpdate) {
+  if (!needsUpdate && !needsSummary) {
     return { analysis: existing, updated: false, missing };
+  }
+
+  // If only the summary is missing, just generate that
+  if (!needsUpdate && needsSummary && existing.changeGroups.length > 0) {
+    try {
+      const { additions, deletions } = calculateStats(prData);
+      const executiveSummary = await generateExecutiveSummary(
+        existing.changeGroups,
+        {
+          title: prData.title,
+          description: prData.body,
+          author: prData.author,
+          baseBranch: prData.baseBranch,
+          headBranch: prData.headBranch,
+          filesChanged: prData.files.length,
+          additions,
+          deletions,
+        },
+        { model: options.model, verbose: options.verbose }
+      );
+      const updated = {
+        ...existing,
+        summary: executiveSummary.summary,
+        reviewGuidance: executiveSummary.reviewGuidance,
+      };
+      return { analysis: updated, updated: true, missing };
+    } catch (error) {
+      if (options.verbose) {
+        console.warn("[lgtm] failed to generate executive summary:", error);
+      }
+      return { analysis: existing, updated: false, missing };
+    }
   }
 
   // Re-run full analysis — the single-call approach makes incremental
