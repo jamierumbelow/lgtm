@@ -79,6 +79,7 @@ interface ClaudeCLIResult {
 function parseClaudeEnvelope(raw: string): {
   text: string;
   costUsd?: number;
+  isError?: boolean;
 } {
   try {
     const envelope = JSON.parse(raw) as ClaudeCLIResult;
@@ -86,6 +87,7 @@ function parseClaudeEnvelope(raw: string): {
       return {
         text: envelope.result,
         costUsd: envelope.cost_usd,
+        isError: envelope.is_error,
       };
     }
   } catch {
@@ -94,13 +96,14 @@ function parseClaudeEnvelope(raw: string): {
   return { text: raw };
 }
 
-/** Run the `claude` CLI with `-p` (prompt mode) */
+/** Run the `claude` CLI with `-p` (prompt mode), piping prompt via stdin */
 async function runClaudeCLI(prompt: string): Promise<{
   text: string;
   costUsd?: number;
 }> {
   return new Promise((resolve, reject) => {
-    const args = ["-p", prompt, "--output-format", "json", "--verbose"];
+    // -p without an argument reads the prompt from stdin
+    const args = ["-p", "--output-format", "json"];
 
     const child = spawn("claude", args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -119,12 +122,17 @@ async function runClaudeCLI(prompt: string): Promise<{
     });
 
     child.on("close", (code) => {
-      if (code !== 0) {
-        const errorMsg = stderr.trim() || stdout.trim() || `Exit code ${code}`;
-        reject(new Error(`claude CLI failed (exit ${code}): ${errorMsg}`));
+      const envelope = parseClaudeEnvelope(stdout);
+
+      // Claude wraps errors in its JSON envelope even on non-zero exit
+      if (code !== 0 || envelope.isError) {
+        const message =
+          envelope.text?.trim() || stderr.trim() || `Exit code ${code}`;
+        reject(new Error(`claude: ${message}`));
         return;
       }
-      resolve(parseClaudeEnvelope(stdout));
+
+      resolve(envelope);
     });
 
     child.on("error", (err) => {
@@ -138,16 +146,20 @@ async function runClaudeCLI(prompt: string): Promise<{
         reject(new Error(`Failed to run claude CLI: ${err.message}`));
       }
     });
+
+    // Write prompt to stdin and close to signal EOF
+    child.stdin.write(prompt);
+    child.stdin.end();
   });
 }
 
-/** Run the `codex` CLI */
+/** Run the `codex` CLI, piping prompt via stdin */
 async function runCodexCLI(prompt: string): Promise<{
   text: string;
   costUsd?: number;
 }> {
   return new Promise((resolve, reject) => {
-    const args = ["--quiet", "--full-auto", "-m", "o3", prompt];
+    const args = ["--quiet", "--full-auto", "-m", "o3"];
 
     const child = spawn("codex", args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -185,6 +197,10 @@ async function runCodexCLI(prompt: string): Promise<{
         reject(new Error(`Failed to run codex CLI: ${err.message}`));
       }
     });
+
+    // Write prompt to stdin and close to signal EOF
+    child.stdin.write(prompt);
+    child.stdin.end();
   });
 }
 
