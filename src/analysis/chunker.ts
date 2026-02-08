@@ -22,6 +22,13 @@ export interface FileDiff {
   hunks: DiffHunk[];
 }
 
+export interface SymbolInfo {
+  name: string;
+  signature: string; // Full declaration line, trimmed
+  file: string;
+  newLine: number; // Line number in the new file
+}
+
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
 export type SuggestionSeverity =
@@ -44,6 +51,8 @@ export interface ChangeGroup {
   hunks: Array<{ file: string; hunk: DiffHunk }>;
   symbolsIntroduced?: string[];
   symbolsModified?: string[];
+  symbolsIntroducedInfo?: SymbolInfo[];
+  symbolsModifiedInfo?: SymbolInfo[];
   reviewQuestions?: ReviewQuestion[];
   riskLevel?: RiskLevel;
   verdict?: string;
@@ -185,6 +194,8 @@ export function chunkDiffHeuristic(diff: string): ChangeGroup[] {
       f.hunks.map((h) => ({ file: f.path, hunk: h }))
     );
     const groupFiles = dirFiles.map((f) => f.path);
+    const symbolInfos = extractNewSymbolInfos(dirFiles);
+    const modifiedInfos = extractModifiedSymbolInfos(dirFiles);
     const group: ChangeGroup = {
       id: createStableChangeGroupId({
         files: groupFiles,
@@ -194,8 +205,10 @@ export function chunkDiffHeuristic(diff: string): ChangeGroup[] {
       files: groupFiles,
       hunks: groupHunks,
       changeType: inferChangeType(dirFiles),
-      symbolsIntroduced: extractNewSymbols(dirFiles),
-      symbolsModified: extractModifiedSymbols(dirFiles),
+      symbolsIntroduced: [...new Set(symbolInfos.map((s) => s.name))],
+      symbolsModified: [...new Set(modifiedInfos.map((s) => s.name))],
+      symbolsIntroducedInfo: symbolInfos,
+      symbolsModifiedInfo: modifiedInfos,
     };
     groups.push(group);
   }
@@ -256,53 +269,160 @@ function inferChangeType(files: FileDiff[]): ChangeGroup["changeType"] {
   return "unknown";
 }
 
-function extractNewSymbols(files: FileDiff[]): string[] {
-  const symbols: string[] = [];
+export function matchSymbolName(line: string): string | null {
+  // Function declarations
+  const funcMatch = line.match(/(?:function|const|let|var)\s+(\w+)\s*[=(]/);
+  if (funcMatch) return funcMatch[1];
 
-  for (const file of files) {
-    for (const hunk of file.hunks) {
-      const addedLines = hunk.content
-        .split("\n")
-        .filter((l) => l.startsWith("+"))
-        .map((l) => l.slice(1));
+  // Class declarations
+  const classMatch = line.match(/class\s+(\w+)/);
+  if (classMatch) return classMatch[1];
 
-      for (const line of addedLines) {
-        // Function declarations
-        const funcMatch = line.match(
-          /(?:function|const|let|var)\s+(\w+)\s*[=(]/
-        );
-        if (funcMatch) symbols.push(funcMatch[1]);
+  // Type/interface declarations
+  const typeMatch = line.match(/(?:type|interface)\s+(\w+)/);
+  if (typeMatch) return typeMatch[1];
 
-        // Class declarations
-        const classMatch = line.match(/class\s+(\w+)/);
-        if (classMatch) symbols.push(classMatch[1]);
+  // Python function/class
+  const pyMatch = line.match(/(?:def|class)\s+(\w+)/);
+  if (pyMatch) return pyMatch[1];
 
-        // Type/interface declarations
-        const typeMatch = line.match(/(?:type|interface)\s+(\w+)/);
-        if (typeMatch) symbols.push(typeMatch[1]);
-
-        // Python function/class
-        const pyMatch = line.match(/(?:def|class)\s+(\w+)/);
-        if (pyMatch) symbols.push(pyMatch[1]);
-      }
-    }
-  }
-
-  return [...new Set(symbols)];
+  return null;
 }
 
-function extractModifiedSymbols(files: FileDiff[]): string[] {
-  const symbols: string[] = [];
+export function extractNewSymbolInfos(files: FileDiff[]): SymbolInfo[] {
+  const symbols: SymbolInfo[] = [];
+  const seen = new Set<string>();
 
   for (const file of files) {
     for (const hunk of file.hunks) {
-      // The hunk header often contains the function name
-      if (hunk.header) {
-        const funcMatch = hunk.header.match(/(?:function|def|class)\s+(\w+)/);
-        if (funcMatch) symbols.push(funcMatch[1]);
+      const lines = hunk.content.split("\n");
+      let newLine = hunk.newStart;
+
+      for (const line of lines) {
+        if (!line) continue;
+        const firstChar = line[0];
+
+        if (firstChar === "+") {
+          const content = line.slice(1);
+          const name = matchSymbolName(content);
+          if (name) {
+            const key = `${file.path}:${name}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              symbols.push({
+                name,
+                signature: content.trim(),
+                file: file.path,
+                newLine,
+              });
+            }
+          }
+          newLine++;
+        } else if (firstChar === "-") {
+          // deletions don't advance newLine
+        } else {
+          // context line
+          newLine++;
+        }
       }
     }
   }
 
-  return [...new Set(symbols)];
+  return symbols;
+}
+
+export function extractModifiedSymbolInfos(files: FileDiff[]): SymbolInfo[] {
+  const symbols: SymbolInfo[] = [];
+  const seen = new Set<string>();
+
+  for (const file of files) {
+    for (const hunk of file.hunks) {
+      if (hunk.header) {
+        const funcMatch = hunk.header.match(/(?:function|def|class)\s+(\w+)/);
+        if (funcMatch) {
+          const key = `${file.path}:${funcMatch[1]}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            symbols.push({
+              name: funcMatch[1],
+              signature: hunk.header.trim(),
+              file: file.path,
+              newLine: hunk.newStart,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return symbols;
+}
+
+export function extractNewSymbolInfosFromHunks(
+  hunks: Array<{ file: string; hunk: DiffHunk }>
+): SymbolInfo[] {
+  const symbols: SymbolInfo[] = [];
+  const seen = new Set<string>();
+
+  for (const { file, hunk } of hunks) {
+    const lines = hunk.content.split("\n");
+    let newLine = hunk.newStart;
+
+    for (const line of lines) {
+      if (!line) continue;
+      const firstChar = line[0];
+
+      if (firstChar === "+") {
+        const content = line.slice(1);
+        const name = matchSymbolName(content);
+        if (name) {
+          const key = `${file}:${name}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            symbols.push({
+              name,
+              signature: content.trim(),
+              file,
+              newLine,
+            });
+          }
+        }
+        newLine++;
+      } else if (firstChar === "-") {
+        // deletions don't advance newLine
+      } else {
+        // context line
+        newLine++;
+      }
+    }
+  }
+
+  return symbols;
+}
+
+export function extractModifiedSymbolInfosFromHunks(
+  hunks: Array<{ file: string; hunk: DiffHunk }>
+): SymbolInfo[] {
+  const symbols: SymbolInfo[] = [];
+  const seen = new Set<string>();
+
+  for (const { file, hunk } of hunks) {
+    if (hunk.header) {
+      const funcMatch = hunk.header.match(/(?:function|def|class)\s+(\w+)/);
+      if (funcMatch) {
+        const key = `${file}:${funcMatch[1]}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          symbols.push({
+            name: funcMatch[1],
+            signature: hunk.header.trim(),
+            file,
+            newLine: hunk.newStart,
+          });
+        }
+      }
+    }
+  }
+
+  return symbols;
 }

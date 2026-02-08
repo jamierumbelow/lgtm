@@ -7,6 +7,8 @@ import {
   RiskLevel,
   ReviewSuggestion,
   parseDiff,
+  extractNewSymbolInfos,
+  extractModifiedSymbolInfos,
 } from "../analysis/chunker.js";
 import { createStableChangeGroupId } from "../analysis/change-id.js";
 import { trimHunkContent } from "./diff-context.js";
@@ -256,8 +258,11 @@ function mapToChangeGroups(
     }
 
     const changeType = normalizeChangeType(cs.changeType);
+    const fileDiffs = hunksToFileDiffs(hunks);
     const symbolsIntroduced = extractNewSymbols(hunks);
     const symbolsModified = extractModifiedSymbols(hunks);
+    const symbolsIntroducedInfo = extractNewSymbolInfos(fileDiffs);
+    const symbolsModifiedInfo = extractModifiedSymbolInfos(fileDiffs);
 
     // Build review questions from the combined response, filtering to
     // only the questions relevant for this changeset type.
@@ -295,6 +300,8 @@ function mapToChangeGroups(
       changeType,
       symbolsIntroduced,
       symbolsModified,
+      symbolsIntroducedInfo,
+      symbolsModifiedInfo,
       reviewQuestions,
       riskLevel,
       verdict: cs.verdict?.trim() || undefined,
@@ -334,7 +341,27 @@ function buildExcludedGroup(excludedDiffs: FileDiff[]): ChangeGroup | null {
     changeType: allLockfiles ? "config" : "unknown",
     symbolsIntroduced: extractNewSymbols(hunks),
     symbolsModified: extractModifiedSymbols(hunks),
+    symbolsIntroducedInfo: extractNewSymbolInfos(excludedDiffs),
+    symbolsModifiedInfo: extractModifiedSymbolInfos(excludedDiffs),
   };
+}
+
+// --- Helpers ---
+
+/** Group flat hunk array into FileDiff[] so we can reuse chunker's SymbolInfo extractors */
+function hunksToFileDiffs(
+  hunks: Array<{ file: string; hunk: DiffHunk }>
+): FileDiff[] {
+  const byFile = new Map<string, DiffHunk[]>();
+  for (const { file, hunk } of hunks) {
+    if (!byFile.has(file)) byFile.set(file, []);
+    byFile.get(file)!.push(hunk);
+  }
+  return [...byFile.entries()].map(([path, fileHunks]) => ({
+    path,
+    status: "modified" as FileDiff["status"],
+    hunks: fileHunks,
+  }));
 }
 
 // --- Symbol extraction ---

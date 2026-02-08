@@ -1,5 +1,5 @@
 import { Analysis, ReviewQuestion } from "../analysis/analyzer.js";
-import { ChangeGroup, ReviewSuggestion } from "../analysis/chunker.js";
+import { ChangeGroup, ReviewSuggestion, SymbolInfo } from "../analysis/chunker.js";
 import { marked } from "marked";
 
 export function renderHTML(analysis: Analysis): string {
@@ -118,6 +118,72 @@ export function renderHTML(analysis: Analysis): string {
       padding: 4px 8px;
       border-radius: 4px;
       color: var(--accent);
+    }
+
+    .symbol-interactive {
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .symbol-interactive:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .symbol-tooltip {
+      position: fixed;
+      z-index: 200;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      max-width: 600px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .symbol-tooltip.visible {
+      opacity: 1;
+    }
+
+    .symbol-tooltip-file {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .symbol-tooltip-signature {
+      color: var(--text);
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .diff-line.highlight-target,
+    .diff-row.highlight-target {
+      animation: highlight-flash 2s ease-out;
+    }
+
+    .diff-line.addition.highlight-target {
+      animation: highlight-flash-green 2s ease-out;
+    }
+
+    .diff-row.addition.highlight-target {
+      animation: highlight-flash-green 2s ease-out;
+    }
+
+    @keyframes highlight-flash {
+      0% { background: rgba(88, 166, 255, 0.4); }
+      100% { background: transparent; }
+    }
+
+    @keyframes highlight-flash-green {
+      0% { background: rgba(88, 166, 255, 0.4); }
+      100% { background: var(--green-bg); }
     }
 
     /* Review Mode */
@@ -1015,6 +1081,78 @@ export function renderHTML(analysis: Analysis): string {
       el.closest('.review-question-card').classList.toggle('expanded');
     }
 
+    // --- Symbol hover tooltip ---
+    const tooltip = document.createElement('div');
+    tooltip.className = 'symbol-tooltip';
+    tooltip.innerHTML = '<div class="symbol-tooltip-file"></div><div class="symbol-tooltip-signature"></div>';
+    document.body.appendChild(tooltip);
+
+    let tooltipTimeout = null;
+
+    document.addEventListener('mouseover', (e) => {
+      const sym = e.target.closest('.symbol-interactive');
+      if (!sym) return;
+
+      tooltip.querySelector('.symbol-tooltip-file').textContent = sym.dataset.file + ':' + sym.dataset.line;
+      tooltip.querySelector('.symbol-tooltip-signature').textContent = sym.dataset.signature;
+
+      const rect = sym.getBoundingClientRect();
+      let left = rect.left;
+      let top = rect.bottom + 8;
+
+      if (left + 500 > window.innerWidth) {
+        left = window.innerWidth - 516;
+      }
+      if (top + 80 > window.innerHeight) {
+        top = rect.top - 8;
+        tooltip.style.transform = 'translateY(-100%)';
+      } else {
+        tooltip.style.transform = '';
+      }
+
+      tooltip.style.left = Math.max(8, left) + 'px';
+      tooltip.style.top = top + 'px';
+
+      clearTimeout(tooltipTimeout);
+      tooltipTimeout = setTimeout(() => {
+        tooltip.classList.add('visible');
+      }, 200);
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      const sym = e.target.closest('.symbol-interactive');
+      if (!sym) return;
+      clearTimeout(tooltipTimeout);
+      tooltip.classList.remove('visible');
+    });
+
+    // --- Symbol click to jump ---
+    document.addEventListener('click', (e) => {
+      const sym = e.target.closest('.symbol-interactive');
+      if (!sym) return;
+
+      const targetId = sym.dataset.targetLine;
+      if (!targetId) return;
+
+      const mode = document.body.dataset.diffMode;
+      const resolvedId = mode === 'side-by-side' ? 'sbs-' + targetId : targetId;
+      const targetEl = document.getElementById(resolvedId);
+      if (!targetEl) return;
+
+      document.querySelectorAll('.highlight-target').forEach(el => {
+        el.classList.remove('highlight-target');
+      });
+
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Re-trigger animation by forcing reflow
+      void targetEl.offsetWidth;
+      targetEl.classList.add('highlight-target');
+
+      tooltip.classList.remove('visible');
+      clearTimeout(tooltipTimeout);
+    });
+
     // Initialize - start in review mode on summary slide
     setDiffMode(localStorage.getItem(diffModeKey) || 'side-by-side');
     showSlide(0);
@@ -1159,7 +1297,7 @@ function renderSlide(
   index: number,
   analysis: Analysis
 ): string {
-  const diffContent = renderDiff(group);
+  const diffContent = renderDiff(group, index);
   const relevantQuestions = getRelevantQuestions(group, analysis);
 
   return `
@@ -1226,9 +1364,7 @@ function renderSlide(
           <div class="meta-section">
             <div class="meta-section-title">New Symbols</div>
             <div class="symbols">
-              ${group.symbolsIntroduced
-                .map((s) => `<span class="symbol">${escapeHtml(s)}</span>`)
-                .join("")}
+              ${renderSymbolTags(group.symbolsIntroduced, group.symbolsIntroducedInfo, index)}
             </div>
           </div>
         `
@@ -1241,9 +1377,7 @@ function renderSlide(
           <div class="meta-section">
             <div class="meta-section-title">Modified Symbols</div>
             <div class="symbols">
-              ${group.symbolsModified
-                .map((s) => `<span class="symbol">${escapeHtml(s)}</span>`)
-                .join("")}
+              ${renderSymbolTags(group.symbolsModified, group.symbolsModifiedInfo, index)}
             </div>
           </div>
         `
@@ -1327,7 +1461,7 @@ function renderSuggestions(suggestions?: ReviewSuggestion[]): string {
   `;
 }
 
-function renderDiff(group: ChangeGroup): string {
+function renderDiff(group: ChangeGroup, slideIndex: number): string {
   const fileGroups = new Map<string, typeof group.hunks>();
 
   for (const { file, hunk } of group.hunks) {
@@ -1355,10 +1489,10 @@ function renderDiff(group: ChangeGroup): string {
           </div>
         </div>
         <div class="diff-content diff-content-side-by-side">
-          ${renderSideBySideDiff(hunks)}
+          ${renderSideBySideDiff(hunks, slideIndex, file)}
         </div>
         <div class="diff-content diff-content-integrated">
-          ${renderIntegratedDiff(hunks)}
+          ${renderIntegratedDiff(hunks, slideIndex, file)}
         </div>
       </div>
     `;
@@ -1368,9 +1502,12 @@ function renderDiff(group: ChangeGroup): string {
 }
 
 function renderIntegratedDiff(
-  hunks: Array<{ file: string; hunk: any }>
+  hunks: Array<{ file: string; hunk: any }>,
+  slideIndex: number,
+  filePath: string
 ): string {
   let html = "";
+  const safeFile = safeFileId(filePath);
 
   for (const { hunk } of hunks) {
     html += `
@@ -1394,10 +1531,13 @@ function renderIntegratedDiff(
       let lineClass = "";
       let lineNum = "";
       let marker = "";
+      let lineId = "";
 
       if (firstChar === "+") {
         lineClass = "addition";
-        lineNum = String(newLine++);
+        lineNum = String(newLine);
+        lineId = `line-${slideIndex}-${safeFile}-${newLine}`;
+        newLine++;
         marker = '<span class="addition-marker">+</span>';
       } else if (firstChar === "-") {
         lineClass = "deletion";
@@ -1405,12 +1545,13 @@ function renderIntegratedDiff(
         marker = '<span class="deletion-marker">-</span>';
       } else {
         lineNum = String(oldLine++);
+        lineId = `line-${slideIndex}-${safeFile}-${newLine}`;
         newLine++;
         marker = " ";
       }
 
       html += `
-          <div class="diff-line ${lineClass}">
+          <div class="diff-line ${lineClass}"${lineId ? ` id="${lineId}"` : ""}>
             <span class="line-number">${lineNum}</span>
             <span class="line-content">${marker}${escapeHtml(content)}</span>
           </div>
@@ -1422,9 +1563,12 @@ function renderIntegratedDiff(
 }
 
 function renderSideBySideDiff(
-  hunks: Array<{ file: string; hunk: any }>
+  hunks: Array<{ file: string; hunk: any }>,
+  slideIndex: number,
+  filePath: string
 ): string {
   let html = "";
+  const safeFile = safeFileId(filePath);
 
   for (const { hunk } of hunks) {
     html += `
@@ -1449,10 +1593,13 @@ function renderSideBySideDiff(
       let newMarker = "";
       let oldContent = "";
       let newContent = "";
+      let lineId = "";
 
       if (firstChar === "+") {
         lineClass = "addition";
-        newLineNum = String(newLine++);
+        newLineNum = String(newLine);
+        lineId = `sbs-line-${slideIndex}-${safeFile}-${newLine}`;
+        newLine++;
         newMarker = '<span class="addition-marker">+</span>';
         newContent = content;
       } else if (firstChar === "-") {
@@ -1462,7 +1609,9 @@ function renderSideBySideDiff(
         oldContent = content;
       } else {
         oldLineNum = String(oldLine++);
-        newLineNum = String(newLine++);
+        newLineNum = String(newLine);
+        lineId = `sbs-line-${slideIndex}-${safeFile}-${newLine}`;
+        newLine++;
         oldMarker = " ";
         newMarker = " ";
         oldContent = content;
@@ -1470,7 +1619,7 @@ function renderSideBySideDiff(
       }
 
       html += `
-          <div class="diff-row ${lineClass}">
+          <div class="diff-row ${lineClass}"${lineId ? ` id="${lineId}"` : ""}>
             <span class="line-number old">${oldLineNum}</span>
             <span class="line-content old">${oldMarker}${escapeHtml(
         oldContent
@@ -1596,6 +1745,28 @@ function renderGenerationMeta(analysis: Analysis): string {
       }
     </div>
   `;
+}
+
+function safeFileId(filePath: string): string {
+  return filePath.replace(/[^a-zA-Z0-9]/g, "-");
+}
+
+function renderSymbolTags(
+  names: string[],
+  infos: SymbolInfo[] | undefined,
+  slideIndex: number
+): string {
+  if (infos?.length) {
+    return infos
+      .map((sym) => {
+        const targetId = `line-${slideIndex}-${safeFileId(sym.file)}-${sym.newLine}`;
+        return `<span class="symbol symbol-interactive" data-target-line="${targetId}" data-signature="${escapeHtml(sym.signature)}" data-file="${escapeHtml(sym.file)}" data-line="${sym.newLine}">${escapeHtml(sym.name)}</span>`;
+      })
+      .join("");
+  }
+  return names
+    .map((s) => `<span class="symbol">${escapeHtml(s)}</span>`)
+    .join("");
 }
 
 function escapeHtml(str: string): string {
