@@ -44,7 +44,18 @@ import {
   onUsageUpdated,
 } from "./llm/usage.js";
 import { calculateTokenlensCost } from "./llm/tokenlens.js";
-import { ModelChoice } from "./config.js";
+import {
+  ModelChoice,
+  getDefaultModel,
+  getUserDefaultModel,
+  BUILTIN_DEFAULT_MODEL,
+} from "./config.js";
+import { MODEL_SPECS } from "./llm/models.js";
+import { isCLIAvailable } from "./llm/cli-provider.js";
+import {
+  setRawUserDefaultModel,
+  clearUserDefaultModel,
+} from "./preferences.js";
 import {
   getVersionString,
   getBuildType,
@@ -85,6 +96,16 @@ const printStatus = async (): Promise<void> => {
   const hasOpenAIEnv = !!process.env.OPENAI_API_KEY;
   const hasGoogleEnv = !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
+  const userDefault = getUserDefaultModel();
+  const effectiveModel = getDefaultModel();
+  const modelLabel = MODEL_SPECS[effectiveModel].label;
+
+  console.log();
+  console.log(chalk.bold("  Default Model"));
+  console.log(chalk.dim("  ────────────────────────────"));
+  console.log(
+    `  ${modelLabel}${userDefault ? "" : chalk.dim(" (built-in default)")}`
+  );
   console.log();
   console.log(chalk.bold("  API Keys"));
   console.log(chalk.dim("  ────────────────────────────"));
@@ -159,6 +180,87 @@ const handleApiKeySetup = async (
   spinner.succeed(`${provider} API key stored in keychain`);
 };
 
+const handleDefaultModelSetup = async (): Promise<void> => {
+  const currentDefault = getDefaultModel();
+  const userDefault = getUserDefaultModel();
+
+  const allModels = Object.values(ModelChoice);
+  const cliModels = allModels.filter((m) => MODEL_SPECS[m].provider === "cli");
+  const apiModels = allModels.filter((m) => MODEL_SPECS[m].provider !== "cli");
+
+  // Check CLI tool availability in parallel
+  const cliAvailability = new Map<ModelChoice, boolean>();
+  await Promise.all(
+    cliModels.map(async (model) => {
+      const spec = MODEL_SPECS[model];
+      const available = spec.cliCommand
+        ? await isCLIAvailable(spec.cliCommand)
+        : false;
+      cliAvailability.set(model, available);
+    })
+  );
+
+  const makeChoice = (model: ModelChoice) => {
+    const spec = MODEL_SPECS[model];
+    const isCurrent = model === currentDefault;
+    const suffix = isCurrent ? chalk.green(" <- current") : "";
+    return { name: `${spec.label}${suffix}`, value: model };
+  };
+
+  const makeDisabledChoice = (model: ModelChoice) => {
+    const spec = MODEL_SPECS[model];
+    return {
+      name: `${spec.label} ${chalk.dim(`(${spec.cliCommand} not found)`)}`,
+      value: model,
+      disabled: true,
+    };
+  };
+
+  // CLI options first, then API options
+  const modelChoices: Array<{
+    name: string;
+    value: string;
+    disabled?: boolean;
+  }> = [
+    ...cliModels.map((m) =>
+      cliAvailability.get(m) ? makeChoice(m) : makeDisabledChoice(m)
+    ),
+    ...apiModels.map(makeChoice),
+  ];
+
+  if (userDefault) {
+    modelChoices.push({
+      name: `Reset to built-in default (${MODEL_SPECS[BUILTIN_DEFAULT_MODEL].label})`,
+      value: "reset",
+    });
+  }
+  modelChoices.push({ name: "Back", value: "back" });
+
+  const choice = await select({
+    message: "Select default model",
+    choices: modelChoices,
+  });
+
+  if (choice === "back") return;
+
+  if (choice === "reset") {
+    clearUserDefaultModel();
+    console.log(
+      chalk.green(
+        `  Reset to built-in default (${MODEL_SPECS[BUILTIN_DEFAULT_MODEL].label})`
+      )
+    );
+    return;
+  }
+
+  setRawUserDefaultModel(choice);
+  console.log(
+    chalk.green(
+      `  Default model set to ${MODEL_SPECS[choice as ModelChoice].label}`
+    )
+  );
+};
+
 // Config command
 program
   .command("config")
@@ -174,6 +276,7 @@ program
         const choice = await select({
           message: "What would you like to configure?",
           choices: [
+            { name: "Default Model", value: "model" },
             { name: "Anthropic API Key", value: "anthropic" },
             { name: "OpenAI API Key", value: "openai" },
             { name: "Gemini API Key", value: "gemini" },
@@ -183,6 +286,9 @@ program
         });
 
         switch (choice) {
+          case "model":
+            await handleDefaultModelSetup();
+            break;
           case "anthropic":
             await handleApiKeySetup(
               "Anthropic",
@@ -367,7 +473,7 @@ program
   .option("--no-llm", "Skip LLM-powered analysis (descriptions, questions)")
   .option(
     "-m, --model <model>",
-    "LLM model: claude-sonnet-4.5, claude-opus-4.5, gpt-5.2, gemini-3-flash, claude-code, codex"
+    "LLM model: claude-sonnet-4.5, claude-opus-4.5, claude-opus-4.6, gpt-5.2, gpt-5.3-codex, gemini-3-flash, claude-code, codex"
   )
   .option("--verbose", "Enable verbose logging")
   .option("--fresh", "Bypass cache and fetch fresh data")
@@ -383,7 +489,7 @@ program
     try {
       // Validate model option
       const validModels = Object.values(ModelChoice);
-      const selectedModel = options.model
+      let selectedModel = options.model
         ? (validModels.find((m) => m === options.model) as
             | ModelChoice
             | undefined)
@@ -397,6 +503,30 @@ program
           )
         );
         process.exit(1);
+      }
+
+      // First-run setup: if no model was passed via -m, no default is
+      // configured, and LLM is enabled, prompt the user to pick one.
+      if (!selectedModel && !getUserDefaultModel() && options.llm !== false) {
+        console.log();
+        console.log(chalk.bold.magenta("  Welcome to lgtm!"));
+        console.log(
+          chalk.dim("  Before we begin, let's pick a default model.\n")
+        );
+
+        await handleDefaultModelSetup();
+
+        // Re-check — if they still haven't picked one (hit "Back"), bail out
+        if (!getUserDefaultModel()) {
+          console.error(
+            chalk.red(
+              "No default model configured. Run `lgtm config` or pass `-m <model>`."
+            )
+          );
+          process.exit(1);
+        }
+
+        console.log();
       }
 
       // Determine if this is a PR URL (for caching purposes)
@@ -845,6 +975,14 @@ program
         }
       }
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes("User force closed")
+      ) {
+        spinner.stop();
+        console.log();
+        process.exit(0);
+      }
       spinner.fail("Error");
       if (error instanceof Error) {
         console.error(chalk.red(error.message));

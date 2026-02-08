@@ -15,7 +15,7 @@ import {
   hasGoogleApiKey,
 } from "../secrets.js";
 import { recordLLMUsage, updateStreamingEstimate } from "./usage.js";
-import { ModelChoice, DEFAULT_MODEL } from "../config.js";
+import { ModelChoice, getDefaultModel } from "../config.js";
 import { getModelSpec, addPromptSuffix, MODEL_SPECS } from "./models.js";
 import {
   createPromptCacheKey,
@@ -40,9 +40,9 @@ let rateLimitGateCount = 0;
 
 export function loadPrompt(
   promptPath: string,
-  model: ModelChoice = DEFAULT_MODEL
+  model?: ModelChoice
 ): string {
-  const effectiveModel = modelOverride ?? model;
+  const effectiveModel = modelOverride ?? model ?? getDefaultModel();
   const modelPromptPath = addPromptSuffix(
     promptPath,
     getModelSpec(effectiveModel).promptSuffix
@@ -69,12 +69,12 @@ export async function generateStructured<T>(
   options: LLMOptions = {}
 ): Promise<T> {
   const {
-    model: requestedModel = DEFAULT_MODEL,
+    model: requestedModel,
     temperature = 0.2,
     maxTokens = 4096,
     verbose = false,
   } = options;
-  let currentModel = modelOverride ?? requestedModel;
+  let currentModel = modelOverride ?? requestedModel ?? getDefaultModel();
   let modelSpec = getModelSpec(currentModel);
 
   // CLI provider path — delegate to subprocess-based provider

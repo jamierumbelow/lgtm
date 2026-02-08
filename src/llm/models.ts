@@ -1,4 +1,4 @@
-import { ModelChoice, DEFAULT_MODEL } from "../config.js";
+import { ModelChoice, getDefaultModel } from "../config.js";
 
 export type ModelProvider = "anthropic" | "openai" | "google" | "cli";
 
@@ -24,11 +24,23 @@ export const MODEL_SPECS: Record<ModelChoice, ModelSpec> = {
     promptSuffix: "claude-opus-4.5",
     label: "Claude Opus 4 (2025-05-14)",
   },
+  [ModelChoice.ClaudeOpus46]: {
+    provider: "anthropic",
+    modelId: "claude-opus-4-6-20260205",
+    promptSuffix: "claude-opus-4.5",
+    label: "Claude Opus 4.6 (2026-02-05)",
+  },
   [ModelChoice.Gpt52]: {
     provider: "openai",
     modelId: "gpt-5.2",
     promptSuffix: "gpt-5.2",
     label: "GPT-5.2",
+  },
+  [ModelChoice.Gpt53Codex]: {
+    provider: "openai",
+    modelId: "gpt-5.3-codex",
+    promptSuffix: "gpt-5.2",
+    label: "GPT-5.3 Codex",
   },
   [ModelChoice.Gemini3Flash]: {
     provider: "google",
@@ -53,7 +65,7 @@ export const MODEL_SPECS: Record<ModelChoice, ModelSpec> = {
 };
 
 export function getModelSpec(model?: ModelChoice): ModelSpec {
-  return MODEL_SPECS[model ?? DEFAULT_MODEL];
+  return MODEL_SPECS[model ?? getDefaultModel()];
 }
 
 export function addPromptSuffix(promptPath: string, suffix: string): string {

@@ -100,13 +100,7 @@ async function runClaudeCLI(prompt: string): Promise<{
   costUsd?: number;
 }> {
   return new Promise((resolve, reject) => {
-    const args = [
-      "-p",
-      prompt,
-      "--output-format",
-      "json",
-      "--verbose",
-    ];
+    const args = ["-p", prompt, "--output-format", "json", "--verbose"];
 
     const child = spawn("claude", args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -127,9 +121,7 @@ async function runClaudeCLI(prompt: string): Promise<{
     child.on("close", (code) => {
       if (code !== 0) {
         const errorMsg = stderr.trim() || stdout.trim() || `Exit code ${code}`;
-        reject(
-          new Error(`claude CLI failed (exit ${code}): ${errorMsg}`)
-        );
+        reject(new Error(`claude CLI failed (exit ${code}): ${errorMsg}`));
         return;
       }
       resolve(parseClaudeEnvelope(stdout));
@@ -139,7 +131,7 @@ async function runClaudeCLI(prompt: string): Promise<{
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
         reject(
           new Error(
-            'Claude Code CLI not found. Install it from https://docs.anthropic.com/en/docs/claude-code or run: npm install -g @anthropic-ai/claude-code'
+            "Claude Code CLI not found. Install it from https://docs.anthropic.com/en/docs/claude-code or run: npm install -g @anthropic-ai/claude-code"
           )
         );
       } else {
@@ -257,7 +249,10 @@ export async function generateStructuredViaCLI<T>(
     parsed = JSON.parse(jsonStr);
   } catch {
     throw new Error(
-      `${command} CLI returned invalid JSON. Raw response:\n${text.slice(0, 500)}`
+      `${command} CLI returned invalid JSON. Raw response:\n${text.slice(
+        0,
+        500
+      )}`
     );
   }
 

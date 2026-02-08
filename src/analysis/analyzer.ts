@@ -5,7 +5,7 @@ import { chunkDiff } from "./chunker.js";
 import { TraceMatch } from "./trace-finder.js";
 import { reviewDiffWithLLM, ReviewDiffResult } from "../llm/review.js";
 import { generateExecutiveSummary } from "../llm/executive-summary.js";
-import { ModelChoice, DEFAULT_MODEL } from "../config.js";
+import { ModelChoice } from "../config.js";
 
 export type ReviewQuestionCategory = "changeset";
 

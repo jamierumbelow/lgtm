@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { loadPrompt, generateStructured, LLMOptions } from "./client.js";
 import { ChangeGroup } from "../analysis/chunker.js";
-import { DEFAULT_MODEL } from "../config.js";
+import { getDefaultModel } from "../config.js";
 
 const ExecutiveSummarySchema = z.object({
   summary: z.string(),
@@ -27,7 +27,7 @@ export async function generateExecutiveSummary(
   },
   options: LLMOptions = {}
 ): Promise<ExecutiveSummaryResult> {
-  const effectiveModel = options.model ?? DEFAULT_MODEL;
+  const effectiveModel = options.model ?? getDefaultModel();
   const systemPrompt = loadPrompt(
     "executive-summary/executive-summary.v1.txt",
     effectiveModel

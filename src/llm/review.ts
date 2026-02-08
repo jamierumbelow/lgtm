@@ -14,7 +14,7 @@ import { createStableChangeGroupId } from "../analysis/change-id.js";
 import { trimHunkContent } from "./diff-context.js";
 import { isLLMExcludedFile, isLockfilePath } from "./file-filters.js";
 import type { ReviewQuestion } from "../analysis/analyzer.js";
-import { ModelChoice, DEFAULT_MODEL } from "../config.js";
+import { ModelChoice, getDefaultModel } from "../config.js";
 
 // All review question IDs — every changeset gets all questions answered
 // in the single combined call. We filter irrelevant ones post-hoc.
@@ -154,7 +154,7 @@ export async function reviewDiffWithLLM(
 
   const systemPrompt = loadPrompt(
     "review/review.v1.txt",
-    options.model ?? DEFAULT_MODEL
+    options.model ?? getDefaultModel()
   );
   const userPrompt = buildUserPrompt(fileDiffs, excludedDiffs);
 
@@ -165,7 +165,7 @@ export async function reviewDiffWithLLM(
     {
       temperature: 0.1,
       maxTokens: 16384,
-      model: options.model ?? DEFAULT_MODEL,
+      model: options.model ?? getDefaultModel(),
       verbose: options.verbose,
     }
   );
@@ -273,7 +273,7 @@ function mapToChangeGroups(
       id,
       question: QUESTION_LABELS[id],
       category: "changeset" as const,
-      model: DEFAULT_MODEL,
+      model: getDefaultModel(),
       answer: cs.review[id]?.trim() || undefined,
     }));
 
