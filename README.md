@@ -123,7 +123,7 @@ lgtm version              # Show detailed version information
 | `-h, --head <branch>`   | Head branch for local comparison                                               |
 | `-f, --format <format>` | Output format: `html` (default), `md`, `json`                                  |
 | `-o, --output <file>`   | Output file (defaults to browser for html, stdout for md/json)                 |
-| `-p, --port <port>`     | Port for HTML server (default: 48721)                                          |
+| `-p, --port <port>`     | Port for HTML server (default: 24601)                                          |
 | `-m, --model <model>`   | LLM model: `claude-sonnet-4.5`, `claude-opus-4.5`, `gpt-5.2`, `gemini-3-flash` |
 | `--no-llm`              | Skip LLM-powered analysis                                                      |
 | `--find-traces`         | Find LLM session traces that generated the changes                             |

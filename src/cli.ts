@@ -20,6 +20,7 @@ import { renderHTML } from "./output/html.js";
 import { renderJSON } from "./output/json.js";
 import { writeFileSync } from "fs";
 import { createServer } from "http";
+import { createServer as createNetServer } from "net";
 import { randomUUID } from "crypto";
 import {
   setAnthropicApiKey,
@@ -352,7 +353,7 @@ program
     "-o, --output <file>",
     "Output file (defaults to stdout for md/json, server for html)"
   )
-  .option("-p, --port <port>", "Port for HTML server", "48721")
+  .option("-p, --port <port>", "Port for HTML server", "24601")
   .option(
     "--find-traces",
     "Attempt to find LLM session traces that generated the changes"
@@ -638,7 +639,17 @@ program
           } else {
             // Generate a stable UUID for this report
             const reportId = randomUUID();
-            const port = parseInt(options.port, 10);
+            const basePort = parseInt(options.port, 10);
+
+            // Find an available port, incrementing if in use
+            const findAvailablePort = (port: number): Promise<number> =>
+              new Promise((resolve) => {
+                const server = createNetServer();
+                server.once("error", () => resolve(findAvailablePort(port + 1)));
+                server.listen(port, () => server.close(() => resolve(port)));
+              });
+
+            const port = await findAvailablePort(basePort);
             const reportUrl = `http://localhost:${port}/report/${reportId}`;
 
             console.log(chalk.cyan(`\n✨ Starting server at ${reportUrl}`));
