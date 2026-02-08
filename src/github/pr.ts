@@ -65,9 +65,8 @@ export async function getPRData(
       if (hasUncommittedChanges()) {
         return fetchWorkingDirDiff(defaultBranch);
       }
-      throw new Error(
-        `Already on ${defaultBranch} with no uncommitted changes. Provide a PR URL, branch, or commit SHA to compare.`
-      );
+      // No uncommitted changes - review the latest commit (git show semantics)
+      return fetchLocalDiff("HEAD~1", "HEAD");
     }
     return fetchLocalDiff(defaultBranch, currentBranch);
   }
