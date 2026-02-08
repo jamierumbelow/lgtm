@@ -85,9 +85,22 @@ You will receive:
 1. A list of files changed with their paths
 2. The unified diff showing all changes
 
+## Executive Summary
+
+After analyzing all changesets, write two additional top-level fields:
+
+### `summary`
+A 2-4 sentence narrative overview of what this PR does. Help a reviewer who has never seen the code understand the intent and scope at a glance. Focus on the "what" and "why", not the "how". Mention the most important changes first. Be specific — don't just say "this PR makes changes to the codebase."
+
+### `reviewGuidance`
+A short paragraph (2-4 sentences) telling the reviewer where to focus their time. Reference specific changesets by their number (e.g. **#1**). Tell them which changesets are safe to skim and which need careful attention. If there are any critical or high-risk changesets, mention them explicitly.
+
 ## Output Format
 
-Return a JSON object with a `changesets` array. Each changeset includes the split metadata AND all review answers.
+Return a JSON object with:
+- A `changesets` array (described below)
+- A `summary` string (executive summary)
+- A `reviewGuidance` string (review focus guidance)
 
 Each changeset must include:
 - `id`: A unique identifier (e.g., "cs-1", "cs-2")

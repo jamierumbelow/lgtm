@@ -172,10 +172,25 @@ async function fetchLocalDiff(base: string, head: string): Promise<PRData> {
     };
   }
 
-  // Get list of changed files between commits
+  // Get name-status AND numstat in two calls (not N per-file calls)
   const filesOutput = execSync(`git diff --name-status ${base}...${head}`, {
     encoding: "utf-8",
   });
+
+  const numstatOutput = execSync(`git diff --numstat ${base}...${head}`, {
+    encoding: "utf-8",
+  });
+
+  // Build a lookup from path → { additions, deletions }
+  const statsByPath = new Map<string, { additions: number; deletions: number }>();
+  for (const line of numstatOutput.trim().split("\n").filter(Boolean)) {
+    const [add, del, ...pathParts] = line.split("\t");
+    const filePath = pathParts.join("\t"); // Handle paths with tabs (renames)
+    statsByPath.set(filePath, {
+      additions: parseInt(add) || 0,
+      deletions: parseInt(del) || 0,
+    });
+  }
 
   const files: PRFile[] = filesOutput
     .trim()
@@ -185,28 +200,12 @@ async function fetchLocalDiff(base: string, head: string): Promise<PRData> {
       const [status, ...pathParts] = line.split("\t");
       const path = pathParts[pathParts.length - 1];
       const previousPath = pathParts.length > 1 ? pathParts[0] : undefined;
-
-      // Get additions/deletions for this file
-      let additions = 0;
-      let deletions = 0;
-      try {
-        const stat = execSync(
-          `git diff --numstat ${base}...${head} -- "${path}"`,
-          { encoding: "utf-8" }
-        ).trim();
-        if (stat) {
-          const [add, del] = stat.split("\t");
-          additions = parseInt(add) || 0;
-          deletions = parseInt(del) || 0;
-        }
-      } catch {
-        // Binary file or other issue
-      }
+      const stats = statsByPath.get(path) ?? { additions: 0, deletions: 0 };
 
       return {
         path,
-        additions,
-        deletions,
+        additions: stats.additions,
+        deletions: stats.deletions,
         status: mapGitStatus(status),
         previousPath,
       };
@@ -230,10 +229,25 @@ async function fetchLocalDiff(base: string, head: string): Promise<PRData> {
  * Compare working directory (uncommitted changes) against a ref
  */
 async function fetchWorkingDirDiff(base: string): Promise<PRData> {
-  // Get list of changed files (staged + unstaged)
+  // Get name-status AND numstat in two calls (not N per-file calls)
   const filesOutput = execSync(`git diff --name-status ${base}`, {
     encoding: "utf-8",
   });
+
+  const numstatOutput = execSync(`git diff --numstat ${base}`, {
+    encoding: "utf-8",
+  });
+
+  // Build a lookup from path → { additions, deletions }
+  const statsByPath = new Map<string, { additions: number; deletions: number }>();
+  for (const line of numstatOutput.trim().split("\n").filter(Boolean)) {
+    const [add, del, ...pathParts] = line.split("\t");
+    const filePath = pathParts.join("\t");
+    statsByPath.set(filePath, {
+      additions: parseInt(add) || 0,
+      deletions: parseInt(del) || 0,
+    });
+  }
 
   const files: PRFile[] = filesOutput
     .trim()
@@ -243,27 +257,12 @@ async function fetchWorkingDirDiff(base: string): Promise<PRData> {
       const [status, ...pathParts] = line.split("\t");
       const path = pathParts[pathParts.length - 1];
       const previousPath = pathParts.length > 1 ? pathParts[0] : undefined;
-
-      // Get additions/deletions for this file
-      let additions = 0;
-      let deletions = 0;
-      try {
-        const stat = execSync(`git diff --numstat ${base} -- "${path}"`, {
-          encoding: "utf-8",
-        }).trim();
-        if (stat) {
-          const [add, del] = stat.split("\t");
-          additions = parseInt(add) || 0;
-          deletions = parseInt(del) || 0;
-        }
-      } catch {
-        // Binary file or other issue
-      }
+      const stats = statsByPath.get(path) ?? { additions: 0, deletions: 0 };
 
       return {
         path,
-        additions,
-        deletions,
+        additions: stats.additions,
+        deletions: stats.deletions,
         status: mapGitStatus(status),
         previousPath,
       };

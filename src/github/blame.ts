@@ -1,4 +1,7 @@
-import { execSync } from "child_process";
+import { execFile } from "child_process";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
 
 export interface FileContributor {
   email: string;
@@ -14,67 +17,88 @@ export interface BlameInfo {
 }
 
 /**
+ * Spawn a git command and return its stdout, or null on failure.
+ * Uses Bun.spawn when available (native, no shell overhead);
+ * falls back to Node execFile (also no shell, but slower to spawn).
+ */
+async function spawnGit(args: string[]): Promise<string | null> {
+  try {
+    if (typeof Bun !== "undefined") {
+      const proc = Bun.spawn(["git", ...args], {
+        stdout: "pipe",
+        stderr: "ignore",
+      });
+      const text = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      return exitCode === 0 ? text : null;
+    }
+    const { stdout } = await execFileAsync("git", args, {
+      encoding: "utf-8",
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    return stdout;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get contributors who have worked on a file and might have context.
  * Uses only local git operations (no network calls).
+ * Blame + log run in parallel per file, and all files run concurrently
+ * without blocking the event loop (so LLM streaming isn't stalled).
  */
 export async function getFileContributors(
   filePath: string
 ): Promise<BlameInfo> {
   const contributors = new Map<string, FileContributor>();
 
-  try {
-    const blameOutput = execSync(
-      `git blame --line-porcelain "${filePath}" 2>/dev/null | grep -E "^(author |author-mail |author-time )"`,
-      { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
-    );
+  // Spawn blame and log in parallel — no shell, no grep subprocess.
+  // We filter the porcelain output in JS instead.
+  const [blameOutput, logOutput] = await Promise.all([
+    spawnGit(["blame", "--line-porcelain", filePath]),
+    spawnGit(["log", "--format=%ae", "--", filePath]),
+  ]);
 
-    const lines = blameOutput.trim().split("\n");
-    let currentAuthor: Partial<FileContributor> = {};
+  if (blameOutput) {
+    let currentName: string | undefined;
+    let currentEmail: string | undefined;
 
-    for (const line of lines) {
+    for (const line of blameOutput.split("\n")) {
       if (line.startsWith("author ")) {
-        currentAuthor.name = line.slice(7);
+        currentName = line.slice(7);
       } else if (line.startsWith("author-mail ")) {
-        currentAuthor.email = line.slice(12).replace(/[<>]/g, "");
-      } else if (line.startsWith("author-time ")) {
+        currentEmail = line.slice(12).replace(/[<>]/g, "");
+      } else if (line.startsWith("author-time ") && currentEmail) {
         const timestamp = parseInt(line.slice(12)) * 1000;
-        currentAuthor.lastCommitDate = new Date(timestamp);
+        const lastCommitDate = new Date(timestamp);
 
-        if (currentAuthor.email) {
-          const existing = contributors.get(currentAuthor.email);
-          if (existing) {
-            existing.linesAuthored++;
-            if (currentAuthor.lastCommitDate > existing.lastCommitDate) {
-              existing.lastCommitDate = currentAuthor.lastCommitDate;
-            }
-          } else {
-            contributors.set(currentAuthor.email, {
-              email: currentAuthor.email,
-              name: currentAuthor.name || "Unknown",
-              commits: 0,
-              linesAuthored: 1,
-              lastCommitDate: currentAuthor.lastCommitDate,
-            });
+        const existing = contributors.get(currentEmail);
+        if (existing) {
+          existing.linesAuthored++;
+          if (lastCommitDate > existing.lastCommitDate) {
+            existing.lastCommitDate = lastCommitDate;
           }
+        } else {
+          contributors.set(currentEmail, {
+            email: currentEmail,
+            name: currentName || "Unknown",
+            commits: 0,
+            linesAuthored: 1,
+            lastCommitDate,
+          });
         }
-        currentAuthor = {};
+        currentName = undefined;
+        currentEmail = undefined;
       }
     }
+  }
 
-    // Get commit counts per author — single git log call
-    const logOutput = execSync(
-      `git log --format="%ae" -- "${filePath}" 2>/dev/null`,
-      { encoding: "utf-8" }
-    );
-
+  if (logOutput) {
     for (const email of logOutput.trim().split("\n").filter(Boolean)) {
       const contributor = contributors.get(email);
-      if (contributor) {
-        contributor.commits++;
-      }
+      if (contributor) contributor.commits++;
     }
-  } catch {
-    // File might be new or git command failed
   }
 
   return {

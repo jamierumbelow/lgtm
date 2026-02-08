@@ -3,7 +3,7 @@ import { aggregateContributors, FileContributor } from "../github/blame.js";
 import { ChangeGroup } from "./chunker.js";
 import { chunkDiff } from "./chunker.js";
 import { TraceMatch } from "./trace-finder.js";
-import { reviewDiffWithLLM } from "../llm/review.js";
+import { reviewDiffWithLLM, ReviewDiffResult } from "../llm/review.js";
 import { generateExecutiveSummary } from "../llm/executive-summary.js";
 import { ModelChoice, DEFAULT_MODEL } from "../config.js";
 
@@ -164,10 +164,14 @@ export async function analyzeChanges(
 
   // Run LLM review and contributor analysis IN PARALLEL.
   // The LLM call doesn't need blame data, and blame doesn't need changesets.
-  const [changeGroups, contributors] = await Promise.all([
+  // The single-pass LLM call now includes the executive summary, eliminating
+  // the need for a separate round trip.
+  const [reviewResult, contributors] = await Promise.all([
     buildChangeGroupsWithReview(prData, options),
     buildContributors(prData),
   ]);
+
+  const { changeGroups, summary, reviewGuidance } = reviewResult;
 
   // Notify that changesets have been created
   if (options.onChangesetsCreated) {
@@ -203,10 +207,13 @@ export async function analyzeChanges(
     questions,
     contributors,
     suggestedReviewers,
+    summary,
+    reviewGuidance,
   };
 
-  // Generate executive summary if LLM is enabled and we have changesets
-  if (options.useLLM && changeGroups.length > 0) {
+  // If the single-pass call didn't produce a summary (e.g. heuristic fallback),
+  // fall back to a separate executive summary call
+  if (options.useLLM && !analysis.summary && changeGroups.length > 0) {
     try {
       options.onStepProgress?.({
         step: "Generating executive summary...",
@@ -329,14 +336,14 @@ function calculateStats(prData: PRData): {
 }
 
 /**
- * When LLM is enabled, uses the single-pass review function that splits
- * AND answers questions in one call. Falls back to heuristic chunking
- * when LLM is disabled.
+ * When LLM is enabled, uses the single-pass review function that splits,
+ * answers questions, AND generates the executive summary in one call.
+ * Falls back to heuristic chunking when LLM is disabled.
  */
 async function buildChangeGroupsWithReview(
   prData: PRData,
   options: AnalyzeOptions
-): Promise<ChangeGroup[]> {
+): Promise<ReviewDiffResult> {
   if (options.useLLM) {
     return reviewDiffWithLLM(prData.diff, {
       model: options.model,
@@ -353,7 +360,10 @@ async function buildChangeGroupsWithReview(
   }
 
   // Heuristic fallback (no LLM)
-  return chunkDiff(prData.diff, prData.files, { useLLM: false });
+  const changeGroups = await chunkDiff(prData.diff, prData.files, {
+    useLLM: false,
+  });
+  return { changeGroups };
 }
 
 async function buildContributors(prData: PRData): Promise<FileContributor[]> {

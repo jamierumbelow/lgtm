@@ -106,6 +106,8 @@ const ChangesetWithReviewSchema = z.object({
 
 const CombinedReviewResponseSchema = z.object({
   changesets: z.array(ChangesetWithReviewSchema),
+  summary: z.string(),
+  reviewGuidance: z.string(),
 });
 
 type ChangesetWithReview = z.infer<typeof ChangesetWithReviewSchema>;
@@ -118,26 +120,32 @@ export interface ReviewDiffOptions {
   onProgress?: (info: { step: string }) => void;
 }
 
+export interface ReviewDiffResult {
+  changeGroups: ChangeGroup[];
+  summary?: string;
+  reviewGuidance?: string;
+}
+
 /**
- * Single-pass review: splits the diff into changesets AND answers all
- * review questions in one LLM call. Replaces the old two-phase pipeline
- * (splitChangesetsWithLLM → answerChangesetQuestionsWithLLM).
+ * Single-pass review: splits the diff into changesets, answers all
+ * review questions, AND generates the executive summary — all in one
+ * LLM call. This eliminates the separate executive-summary round trip.
  */
 export async function reviewDiffWithLLM(
   diff: string,
   options: ReviewDiffOptions = {}
-): Promise<ChangeGroup[]> {
+): Promise<ReviewDiffResult> {
   const fileDiffs = parseDiff(diff);
 
   if (fileDiffs.length === 0) {
-    return [];
+    return { changeGroups: [] };
   }
 
   const [eligibleDiffs, excludedDiffs] = partitionFileDiffs(fileDiffs);
   const excludedGroup = buildExcludedGroup(excludedDiffs);
 
   if (eligibleDiffs.length === 0) {
-    return excludedGroup ? [excludedGroup] : [];
+    return { changeGroups: excludedGroup ? [excludedGroup] : [] };
   }
 
   options.onProgress?.({ step: "Reviewing diff (single pass)..." });
@@ -166,7 +174,11 @@ export async function reviewDiffWithLLM(
     changeGroups.push(excludedGroup);
   }
 
-  return changeGroups;
+  return {
+    changeGroups,
+    summary: response.summary?.trim() || undefined,
+    reviewGuidance: response.reviewGuidance?.trim() || undefined,
+  };
 }
 
 // --- Prompt building ---
