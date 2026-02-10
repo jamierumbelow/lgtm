@@ -32,6 +32,7 @@ import {
   setGoogleApiKey,
   deleteGoogleApiKey,
   hasGoogleApiKey,
+  hasKeychainSupport,
 } from "./secrets.js";
 import { select, password, confirm } from "@inquirer/prompts";
 import { getCached, setCache, clearCache, getCacheInfo } from "./cache.js";
@@ -92,9 +93,9 @@ const printStatus = async (): Promise<void> => {
     hasOpenAIApiKey(),
     hasGoogleApiKey(),
   ]);
-  const hasAnthropicEnv = !!process.env.ANTHROPIC_API_KEY;
-  const hasOpenAIEnv = !!process.env.OPENAI_API_KEY;
-  const hasGoogleEnv = !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  const hasAnthropicEnv = !!(process.env.LGTM_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY);
+  const hasOpenAIEnv = !!(process.env.LGTM_OPENAI_API_KEY || process.env.OPENAI_API_KEY);
+  const hasGoogleEnv = !!(process.env.LGTM_GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY);
 
   const userDefault = getUserDefaultModel();
   const effectiveModel = getDefaultModel();
@@ -267,6 +268,16 @@ const runConfig = async (): Promise<void> => {
   console.log();
   console.log(chalk.bold.magenta("  ⚙  lgtm config"));
   await printStatus();
+
+  if (!(await hasKeychainSupport())) {
+    console.log(chalk.yellow("  No system keychain available."));
+    console.log(chalk.dim("  Set API keys as environment variables:\n"));
+    console.log(`  export ${chalk.bold("LGTM_ANTHROPIC_API_KEY")}=sk-ant-...`);
+    console.log(`  export ${chalk.bold("LGTM_OPENAI_API_KEY")}=sk-...`);
+    console.log(`  export ${chalk.bold("LGTM_GOOGLE_API_KEY")}=...`);
+    console.log();
+    return;
+  }
 
   let running = true;
   while (running) {
