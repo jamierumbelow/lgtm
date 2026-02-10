@@ -29,7 +29,22 @@ import {
 } from "./cli-provider.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROMPTS_DIR = join(__dirname, "../../prompts");
+
+function resolvePromptsDir(): string {
+  const candidates = [
+    join(__dirname, "../../prompts"),        // dev mode (src/llm/ -> ../../prompts)
+    join(process.cwd(), "prompts"),          // compiled binary run from project dir
+    join(dirname(process.execPath), "prompts"), // prompts next to the binary
+  ];
+  for (const dir of candidates) {
+    if (existsSync(dir)) return dir;
+  }
+  throw new Error(
+    `Could not find prompts directory. Searched:\n${candidates.map(d => `  - ${d}`).join("\n")}\nPlace the prompts/ directory next to the lgtm binary or run from the project root.`
+  );
+}
+
+const PROMPTS_DIR = resolvePromptsDir();
 
 let modelOverride: ModelChoice | undefined;
 let modelSwitchPrompt: Promise<ModelChoice | undefined> | undefined;
