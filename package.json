@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "bun src/cli.ts",
-    "build": "tsc",
+    "embed-prompts": "bun scripts/embed-prompts.ts",
+    "build": "bun scripts/embed-prompts.ts && tsc",
     "lint": "eslint src/",
     "test": "vitest"
   },
