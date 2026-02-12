@@ -89,6 +89,9 @@ jobs:
           export const getBuildType = (): "canary" | "stable" => buildInfo.isCanary ? "canary" : "stable";
           VERSIONEOF
 
+      - name: Embed prompts
+        run: bun scripts/embed-prompts.ts
+
       - name: Build executable
         run: bun build ./src/cli.ts --compile --target=${{ matrix.target }} --outfile ${{ matrix.artifact }}
 

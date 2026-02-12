@@ -6,6 +6,7 @@ import { select } from "@inquirer/prompts";
 import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { EMBEDDED_PROMPTS } from "./embedded-prompts.js";
 import {
   getAnthropicApiKey,
   getOpenAIApiKey,
@@ -30,7 +31,7 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-function resolvePromptsDir(): string {
+function resolvePromptsDir(): string | null {
   const candidates = [
     join(__dirname, "../../prompts"),        // dev mode (src/llm/ -> ../../prompts)
     join(process.cwd(), "prompts"),          // compiled binary run from project dir
@@ -39,9 +40,7 @@ function resolvePromptsDir(): string {
   for (const dir of candidates) {
     if (existsSync(dir)) return dir;
   }
-  throw new Error(
-    `Could not find prompts directory. Searched:\n${candidates.map(d => `  - ${d}`).join("\n")}\nPlace the prompts/ directory next to the lgtm binary or run from the project root.`
-  );
+  return null; // Fall back to embedded prompts
 }
 
 const PROMPTS_DIR = resolvePromptsDir();
@@ -62,12 +61,30 @@ export function loadPrompt(
     promptPath,
     getModelSpec(effectiveModel).promptSuffix
   );
-  const modelFullPath = join(PROMPTS_DIR, modelPromptPath);
-  if (existsSync(modelFullPath)) {
-    return readFileSync(modelFullPath, "utf-8");
+
+  // Try filesystem first (dev mode or prompts installed alongside binary)
+  if (PROMPTS_DIR) {
+    const modelFullPath = join(PROMPTS_DIR, modelPromptPath);
+    if (existsSync(modelFullPath)) {
+      return readFileSync(modelFullPath, "utf-8");
+    }
+    const fullPath = join(PROMPTS_DIR, promptPath);
+    if (existsSync(fullPath)) {
+      return readFileSync(fullPath, "utf-8");
+    }
   }
-  const fullPath = join(PROMPTS_DIR, promptPath);
-  return readFileSync(fullPath, "utf-8");
+
+  // Fall back to embedded prompts (compiled binary)
+  if (EMBEDDED_PROMPTS[modelPromptPath]) {
+    return EMBEDDED_PROMPTS[modelPromptPath];
+  }
+  if (EMBEDDED_PROMPTS[promptPath]) {
+    return EMBEDDED_PROMPTS[promptPath];
+  }
+
+  throw new Error(
+    `Could not find prompt "${promptPath}" (or model variant "${modelPromptPath}") on disk or in embedded prompts.`
+  );
 }
 
 export interface LLMOptions {
