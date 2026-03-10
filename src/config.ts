@@ -2,6 +2,7 @@ import { getRawUserDefaultModel } from "./preferences.js";
 
 export enum ModelChoice {
   ClaudeSonnet45 = "claude-sonnet-4.5",
+  ClaudeSonnet46 = "claude-sonnet-4.6",
   ClaudeOpus45 = "claude-opus-4.5",
   ClaudeOpus46 = "claude-opus-4.6",
   Gpt52 = "gpt-5.2",
@@ -12,7 +13,7 @@ export enum ModelChoice {
 }
 
 /** Built-in fallback when no user preference is set */
-export const BUILTIN_DEFAULT_MODEL = ModelChoice.ClaudeSonnet45;
+export const BUILTIN_DEFAULT_MODEL = ModelChoice.ClaudeSonnet46;
 
 /** Get the user's configured default model, or undefined if not set */
 export function getUserDefaultModel(): ModelChoice | undefined {

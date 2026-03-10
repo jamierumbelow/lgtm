@@ -18,6 +18,12 @@ export const MODEL_SPECS: Record<ModelChoice, ModelSpec> = {
     promptSuffix: "claude-sonnet-4.5",
     label: "Claude Sonnet 4 (2025-05-14)",
   },
+  [ModelChoice.ClaudeSonnet46]: {
+    provider: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    promptSuffix: "claude-sonnet-4.5",
+    label: "Claude Sonnet 4.6 (2026-03-10)",
+  },
   [ModelChoice.ClaudeOpus45]: {
     provider: "anthropic",
     modelId: "claude-opus-4-20250514",
