@@ -93,11 +93,20 @@ jobs:
       - name: Build executable
         run: bun build ./src/cli.ts --compile --target=${{ matrix.target }} --outfile ${{ matrix.artifact }}
 
-      - name: Upload artifact
+      - name: Build npm package
+        run: ./node_modules/.bin/tsc
+
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
+
+      - name: Upload npm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-dist
+          path: dist/
 
   release:
     needs: [check-version, build]
@@ -114,8 +123,7 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release
-          # Move all artifacts to release folder, flattening the structure
-          find artifacts -type f -exec mv {} release/ \;
+          find artifacts -type f -not -path 'artifacts/npm-dist/*' -exec mv {} release/ \;
           ls -la release/
 
       - name: Create Release
@@ -131,6 +139,11 @@ jobs:
             curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/master/install.sh | bash
             ```
 
+            ### Via npm
+            ```bash
+            npx @jamierumbelow/lgtm
+            ```
+
             ### Manual Download
             Download the appropriate binary for your platform below and add it to your PATH.
 
@@ -144,8 +157,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Ensure latest npm
+        run: npm install -g npm@latest
+
+      - name: Prepare npm package
+        run: cp -r artifacts/npm-dist dist
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+
   canary:
-    needs: build
+    needs: [check-version, build]
+    if: needs.check-version.outputs.should_release != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -158,8 +187,7 @@ jobs:
       - name: Prepare canary assets
         run: |
           mkdir -p canary
-          # Move all artifacts to canary folder, flattening the structure
-          find artifacts -type f -exec mv {} canary/ \;
+          find artifacts -type f -not -path 'artifacts/npm-dist/*' -exec mv {} canary/ \;
           ls -la canary/
 
       - name: Delete existing canary release
@@ -203,55 +231,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  npm-publish:
-    needs: [check-version, release]
-    if: needs.check-version.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+      - name: Ensure latest npm
+        run: npm install -g npm@latest
 
-      - name: Install dependencies
-        run: bun install
-
-      - name: Build
-        run: bun run build
-
-      - name: Publish to npm
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  npm-publish-canary:
-    needs: [check-version, canary]
-    if: needs.check-version.outputs.should_release != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
+      - name: Prepare npm package
+        run: cp -r artifacts/npm-dist dist
 
       - name: Set canary version
         run: |
@@ -260,10 +250,5 @@ jobs:
           CANARY_VERSION="${PACKAGE_VERSION}-canary.$(date +%Y%m%d%H%M%S).${SHORT_SHA}"
           npm version "$CANARY_VERSION" --no-git-tag-version
 
-      - name: Build
-        run: bun run build
-
       - name: Publish canary to npm
         run: npm publish --access public --tag canary --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
