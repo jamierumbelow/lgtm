@@ -1,11 +1,29 @@
-import { secrets } from "bun";
-
 const SERVICE_NAME = "com.lgtm.cli";
+
+let _bunSecrets: typeof import("bun")["secrets"] | null = null;
+let _secretsResolved = false;
+
+async function getBunSecrets() {
+  if (_secretsResolved) return _bunSecrets;
+  _secretsResolved = true;
+  try {
+    const bun = await import("bun");
+    _bunSecrets = bun.secrets;
+  } catch {
+    _bunSecrets = null;
+  }
+  return _bunSecrets;
+}
 
 let _hasKeychain: boolean | null = null;
 
 export async function hasKeychainSupport(): Promise<boolean> {
   if (_hasKeychain !== null) return _hasKeychain;
+  const secrets = await getBunSecrets();
+  if (!secrets) {
+    _hasKeychain = false;
+    return false;
+  }
   try {
     await secrets.get({ service: SERVICE_NAME, name: "__lgtm_keychain_probe__" });
     _hasKeychain = true;
@@ -17,19 +35,19 @@ export async function hasKeychainSupport(): Promise<boolean> {
 
 async function keychainGet(name: string): Promise<string | null> {
   if (!(await hasKeychainSupport())) return null;
-  return await secrets.get({ service: SERVICE_NAME, name });
+  return await _bunSecrets!.get({ service: SERVICE_NAME, name });
 }
 
 async function keychainSet(name: string, value: string): Promise<void> {
   if (!(await hasKeychainSupport())) {
     throw new Error("No system keychain available. Set API keys as environment variables instead.");
   }
-  await secrets.set({ service: SERVICE_NAME, name, value });
+  await _bunSecrets!.set({ service: SERVICE_NAME, name, value });
 }
 
 async function keychainDelete(name: string): Promise<boolean> {
   if (!(await hasKeychainSupport())) return false;
-  return await secrets.delete({ service: SERVICE_NAME, name });
+  return await _bunSecrets!.delete({ service: SERVICE_NAME, name });
 }
 
 // Anthropic API Key

@@ -93,20 +93,11 @@ jobs:
       - name: Build executable
         run: bun build ./src/cli.ts --compile --target=${{ matrix.target }} --outfile ${{ matrix.artifact }}
 
-      - name: Build npm package
-        run: ./node_modules/.bin/tsc
-
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
-
-      - name: Upload npm artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-dist
-          path: dist/
 
   release:
     needs: [check-version, build]
@@ -126,7 +117,7 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release
-          find artifacts -type f -not -path 'artifacts/npm-dist/*' -exec mv {} release/ \;
+          find artifacts -type f -exec mv {} release/ \;
           ls -la release/
 
       - name: Create Release
@@ -169,11 +160,36 @@ jobs:
       - name: Ensure latest npm
         run: npm install -g npm@latest
 
-      - name: Prepare npm package
-        run: cp -r artifacts/npm-dist dist
+      - name: Get version
+        id: version
+        run: |
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          echo "npm_version=${PACKAGE_VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Publish to npm
+      - name: Prepare platform package (darwin-arm64)
+        run: |
+          mkdir -p npm/darwin-arm64/bin
+          cp artifacts/lgtm-darwin-arm64/lgtm-darwin-arm64 npm/darwin-arm64/bin/lgtm
+          chmod +x npm/darwin-arm64/bin/lgtm
+          cd npm/darwin-arm64
+          npm version "${{ steps.version.outputs.npm_version }}" --no-git-tag-version
+
+      - name: Publish platform package (darwin-arm64)
         run: npm publish --access public --provenance --ignore-scripts
+        working-directory: npm/darwin-arm64
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Update optionalDependencies version
+        run: |
+          VERSION="${{ steps.version.outputs.npm_version }}"
+          jq --arg v "$VERSION" '.optionalDependencies["@jamierumbelow/lgtm-darwin-arm64"] = $v' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+      - name: Publish main package
+        run: npm publish --access public --provenance --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   canary:
     needs: [check-version, build]
@@ -193,7 +209,7 @@ jobs:
       - name: Prepare canary assets
         run: |
           mkdir -p canary
-          find artifacts -type f -not -path 'artifacts/npm-dist/*' -exec mv {} canary/ \;
+          find artifacts -type f -exec mv {} canary/ \;
           ls -la canary/
 
       - name: Delete existing canary release
@@ -246,15 +262,36 @@ jobs:
       - name: Ensure latest npm
         run: npm install -g npm@latest
 
-      - name: Prepare npm package
-        run: cp -r artifacts/npm-dist dist
-
       - name: Set canary version
+        id: canary_version
         run: |
           PACKAGE_VERSION=$(jq -r '.version' package.json)
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           CANARY_VERSION="${PACKAGE_VERSION}-canary.$(date +%Y%m%d%H%M%S).${SHORT_SHA}"
-          npm version "$CANARY_VERSION" --no-git-tag-version
+          echo "canary_version=${CANARY_VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Publish canary to npm
+      - name: Prepare platform package (darwin-arm64)
+        run: |
+          mkdir -p npm/darwin-arm64/bin
+          cp artifacts/lgtm-darwin-arm64/lgtm-darwin-arm64 npm/darwin-arm64/bin/lgtm
+          chmod +x npm/darwin-arm64/bin/lgtm
+          cd npm/darwin-arm64
+          npm version "${{ steps.canary_version.outputs.canary_version }}" --no-git-tag-version
+
+      - name: Publish canary platform package (darwin-arm64)
         run: npm publish --access public --tag canary --provenance --ignore-scripts
+        working-directory: npm/darwin-arm64
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Update optionalDependencies and version for canary
+        run: |
+          CANARY="${{ steps.canary_version.outputs.canary_version }}"
+          jq --arg v "$CANARY" '.optionalDependencies["@jamierumbelow/lgtm-darwin-arm64"] = $v' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          npm version "$CANARY" --no-git-tag-version
+
+      - name: Publish canary main package
+        run: npm publish --access public --tag canary --provenance --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

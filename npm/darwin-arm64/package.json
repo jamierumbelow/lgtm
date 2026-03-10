@@ -1,0 +1,13 @@
+{
+  "name": "@jamierumbelow/lgtm-darwin-arm64",
+  "version": "0.0.0",
+  "description": "lgtm binary for macOS ARM64 (Apple Silicon)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamierumbelow/lgtm.git"
+  },
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "preferUnplugged": true
+}

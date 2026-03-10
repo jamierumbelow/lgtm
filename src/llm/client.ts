@@ -31,9 +31,12 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function resolvePromptsDir(): string {
+  if (process.env.LGTM_PROMPTS_DIR && existsSync(process.env.LGTM_PROMPTS_DIR)) {
+    return process.env.LGTM_PROMPTS_DIR;
+  }
   const candidates = [
-    join(__dirname, "../../prompts"),        // dev mode (src/llm/ -> ../../prompts)
-    join(process.cwd(), "prompts"),          // compiled binary run from project dir
+    join(__dirname, "../../prompts"),           // dev mode (src/llm/ -> ../../prompts)
+    join(process.cwd(), "prompts"),             // compiled binary run from project dir
     join(dirname(process.execPath), "prompts"), // prompts next to the binary
   ];
   for (const dir of candidates) {
