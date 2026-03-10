@@ -9,7 +9,7 @@ import {
 import { join } from "path";
 import { homedir } from "os";
 import { createHash } from "crypto";
-import { z, ZodFirstPartyTypeKind } from "zod";
+import { z } from "zod";
 
 const PROMPT_CACHE_DIR = join(homedir(), ".cache", "lgtm", "prompts");
 
@@ -24,13 +24,12 @@ function getPromptCachePath(key: string): string {
 }
 
 export function getSchemaSignature(schema: z.ZodTypeAny): string {
-  const def = schema._def as { typeName?: string };
-  if (def.typeName === ZodFirstPartyTypeKind.ZodObject) {
+  if (schema instanceof z.ZodObject) {
     const shape = (schema as z.ZodObject<any>).shape;
     const keys = Object.keys(shape).sort();
     return `object:${keys.join(",")}`;
   }
-  return def.typeName ?? "unknown";
+  return "unknown";
 }
 
 export function createPromptCacheKey(input: {
