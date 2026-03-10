@@ -4,55 +4,44 @@
 
 `lgtm` takes a GitHub PR (or local branch diff) and generates a structured review that breaks down changes into semantic groups, asks the questions that matter, and even tries to find the AI coding sessions that generated the code.
 
-## Installation
-
-### Quick Install (macOS)
-
-Make sure you have the GitHub CLI installed and authenticated:
+## Quickstart
 
 ```bash
-brew install gh
-gh auth login
+npx @jamierumbelow/lgtm https://github.com/org/repo/pull/123
 ```
 
-Then run the installer:
+Or with Bun:
 
 ```bash
-gh api -H "Accept: application/vnd.github.raw" repos/jamierumbelow/lgtm/contents/install.sh | bash
-```
-
-This uses your GitHub CLI authentication to fetch the installer and download the latest release binary to `/usr/local/bin`.
-
-### Canary Builds
-
-To install the latest build from master (may be unstable):
-
-```bash
-gh api -H "Accept: application/vnd.github.raw" repos/jamierumbelow/lgtm/contents/install-canary.sh | bash
-```
-
-### Manual Installation
-
-Download the appropriate binary from [Releases](https://github.com/jamierumbelow/lgtm/releases):
-
-| Platform | Architecture             | Binary                 |
-| -------- | ------------------------ | ---------------------- |
-| macOS    | Apple Silicon (M1/M2/M3) | `lgtm-darwin-arm64`    |
-| macOS    | Intel                    | `lgtm-darwin-x64`      |
-| Linux    | x64                      | `lgtm-linux-x64`       |
-| Linux    | ARM64                    | `lgtm-linux-arm64`     |
-| Windows  | x64                      | `lgtm-windows-x64.exe` |
-
-Then make it executable and move to your PATH:
-
-```bash
-chmod +x lgtm-darwin-arm64
-sudo mv lgtm-darwin-arm64 /usr/local/bin/lgtm
+bunx @jamierumbelow/lgtm https://github.com/org/repo/pull/123
 ```
 
 ### Requirements
 
 - [GitHub CLI](https://cli.github.com/) (`gh`) installed and authenticated
+- Node.js 20+ (or Bun)
+
+### Installation
+
+You can also install globally:
+
+```bash
+npm install -g @jamierumbelow/lgtm
+```
+
+#### Canary Builds
+
+To run the latest build from master (may be unstable):
+
+```bash
+npx @jamierumbelow/lgtm@canary https://github.com/org/repo/pull/123
+```
+
+Or install the canary globally:
+
+```bash
+npm install -g @jamierumbelow/lgtm@canary
+```
 
 ### API Key Setup
 
