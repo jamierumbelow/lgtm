@@ -1,17 +1,27 @@
 {
-  "name": "lgtm",
+  "name": "@jamierumbelow/lgtm",
   "version": "0.1.2",
   "description": "Structured PR review companion - because 'lgtm' should mean something",
   "type": "module",
   "bin": {
     "lgtm": "./dist/cli.js"
   },
+  "files": [
+    "dist",
+    "prompts"
+  ],
   "scripts": {
     "dev": "bun src/cli.ts",
     "build": "tsc",
+    "prepublishOnly": "bun run build",
     "lint": "eslint src/",
     "test": "vitest"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamierumbelow/lgtm.git"
+  },
+  "license": "MIT",
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.23",
     "@ai-sdk/google": "^3.0.13",
