@@ -43,6 +43,20 @@ Or install the canary globally:
 npm install -g @jamierumbelow/lgtm@canary
 ```
 
+### Shell Alias
+
+For convenience, add an alias to your shell config (`~/.zshrc`, `~/.bashrc`, etc.):
+
+```bash
+alias lgtm="npx @jamierumbelow/lgtm"
+```
+
+Then just run:
+
+```bash
+lgtm https://github.com/org/repo/pull/123
+```
+
 ### API Key Setup
 
 `lgtm` uses LLMs to generate detailed analysis. Configure your API key(s) using the interactive config:
