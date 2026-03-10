@@ -198,6 +198,131 @@ const handleApiKeySetup = async (
   spinner.succeed(`${provider} API key stored in keychain`);
 };
 
+const promptApiKeyForModel = async (model: ModelChoice): Promise<void> => {
+  const spec = MODEL_SPECS[model];
+
+  // CLI-based models don't need API keys
+  if (spec.provider === "cli") return;
+
+  const providerConfig: Record<
+    string,
+    {
+      label: string;
+      hasKey: () => Promise<boolean>;
+      setKey: (key: string) => Promise<void>;
+      deleteKey: () => Promise<boolean>;
+      envVars: string[];
+    }
+  > = {
+    anthropic: {
+      label: "Anthropic",
+      hasKey: hasAnthropicApiKey,
+      setKey: setAnthropicApiKey,
+      deleteKey: deleteAnthropicApiKey,
+      envVars: ["LGTM_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"],
+    },
+    openai: {
+      label: "OpenAI",
+      hasKey: hasOpenAIApiKey,
+      setKey: setOpenAIApiKey,
+      deleteKey: deleteOpenAIApiKey,
+      envVars: ["LGTM_OPENAI_API_KEY", "OPENAI_API_KEY"],
+    },
+    google: {
+      label: "Gemini",
+      hasKey: hasGoogleApiKey,
+      setKey: setGoogleApiKey,
+      deleteKey: deleteGoogleApiKey,
+      envVars: ["LGTM_GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
+    },
+  };
+
+  const config = providerConfig[spec.provider];
+  if (!config) return;
+
+  // Skip if key is already available via env or keychain
+  const hasEnv = config.envVars.some((v) => !!process.env[v]);
+  const hasStored = await config.hasKey();
+  if (hasEnv || hasStored) {
+    console.log(
+      chalk.green(`  ✓ ${config.label} API key already configured`)
+    );
+    return;
+  }
+
+  if (!(await hasKeychainSupport())) {
+    console.log(
+      chalk.yellow(
+        `\n  No system keychain available. Set your API key as an environment variable:`
+      )
+    );
+    console.log(`  export ${chalk.bold(config.envVars[0])}=your-key-here\n`);
+    return;
+  }
+
+  console.log(
+    chalk.dim(
+      `\n  ${spec.label} requires a ${config.label} API key.`
+    )
+  );
+
+  const shouldSet = await confirm({
+    message: `Set your ${config.label} API key now?`,
+    default: true,
+  });
+
+  if (!shouldSet) {
+    console.log(
+      chalk.dim(
+        `  You can set it later with ${chalk.bold("lgtm --config")} or by exporting ${chalk.bold(config.envVars[0])}\n`
+      )
+    );
+    return;
+  }
+
+  const apiKey = await password({
+    message: `Enter your ${config.label} API key:`,
+    mask: "•",
+    validate: (value) => {
+      if (!value.trim()) return "API key cannot be empty";
+      return true;
+    },
+  });
+
+  const spinner = ora(`Storing ${config.label} API key...`).start();
+  await config.setKey(apiKey);
+  spinner.succeed(`${config.label} API key stored in keychain`);
+};
+
+const runWelcome = async (): Promise<void> => {
+  console.log();
+  console.log(chalk.bold.magenta("  Welcome to lgtm!"));
+  console.log(
+    chalk.dim("  Let's get you set up.\n")
+  );
+
+  console.log(chalk.dim("  Step 1: Pick a default model\n"));
+  await handleDefaultModelSetup();
+
+  const chosenModel = getUserDefaultModel();
+  if (!chosenModel) {
+    console.error(
+      chalk.red(
+        "No default model configured. Run `lgtm --config` or pass `-m <model>`."
+      )
+    );
+    process.exit(1);
+  }
+
+  console.log();
+  console.log(chalk.dim("  Step 2: API key\n"));
+  await promptApiKeyForModel(chosenModel);
+
+  console.log();
+  console.log(chalk.green.bold("  You're all set! 🎉"));
+  console.log(chalk.dim("  Run `lgtm <pr-url>` to review a PR.\n"));
+};
+
 const handleDefaultModelSetup = async (): Promise<void> => {
   const currentDefault = getDefaultModel();
   const userDefault = getUserDefaultModel();
@@ -511,6 +636,7 @@ program
     "Install lgtm agent skill (~/.claude/skills, ~/.codex/skills)"
   )
   .option("--uninstall-skill", "Remove lgtm agent skill")
+  .option("--welcome", "Run the first-time onboarding flow")
   .action(async (target, options) => {
     // Handle management flags before review logic
     if (options.version) {
@@ -531,6 +657,10 @@ program
     }
     if (options.uninstallSkill) {
       await runUninstallSkill();
+      return;
+    }
+    if (options.welcome) {
+      await runWelcome();
       return;
     }
 
@@ -558,27 +688,9 @@ program
       }
 
       // First-run setup: if no model was passed via -m, no default is
-      // configured, and LLM is enabled, prompt the user to pick one.
+      // configured, and LLM is enabled, run the welcome flow.
       if (!selectedModel && !getUserDefaultModel() && options.llm !== false) {
-        console.log();
-        console.log(chalk.bold.magenta("  Welcome to lgtm!"));
-        console.log(
-          chalk.dim("  Before we begin, let's pick a default model.\n")
-        );
-
-        await handleDefaultModelSetup();
-
-        // Re-check — if they still haven't picked one (hit "Back"), bail out
-        if (!getUserDefaultModel()) {
-          console.error(
-            chalk.red(
-              "No default model configured. Run `lgtm --config` or pass `-m <model>`."
-            )
-          );
-          process.exit(1);
-        }
-
-        console.log();
+        await runWelcome();
       }
 
       // Determine if this is a PR URL (for caching purposes)
