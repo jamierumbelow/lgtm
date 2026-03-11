@@ -1,6 +1,6 @@
 {
   "name": "@jamierumbelow/lgtm",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Structured PR review companion - because 'lgtm' should mean something",
   "type": "module",
   "bin": {
@@ -22,7 +22,7 @@
   },
   "license": "MIT",
   "optionalDependencies": {
-    "@jamierumbelow/lgtm-darwin-arm64": "0.1.4"
+    "@jamierumbelow/lgtm-darwin-arm64": "0.1.5"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^3.0.23",

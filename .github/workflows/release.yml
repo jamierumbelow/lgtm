@@ -117,7 +117,7 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release
-          find artifacts -type f -exec mv {} release/ \;
+          find artifacts -type f -exec cp {} release/ \;
           ls -la release/
 
       - name: Create Release
@@ -209,7 +209,7 @@ jobs:
       - name: Prepare canary assets
         run: |
           mkdir -p canary
-          find artifacts -type f -exec mv {} canary/ \;
+          find artifacts -type f -exec cp {} canary/ \;
           ls -la canary/
 
       - name: Delete existing canary release
