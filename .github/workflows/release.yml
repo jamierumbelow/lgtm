@@ -177,8 +177,6 @@ jobs:
       - name: Publish platform package (darwin-arm64)
         run: npm publish --access public --provenance --ignore-scripts
         working-directory: npm/darwin-arm64
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Update optionalDependencies version
         run: |
@@ -188,8 +186,6 @@ jobs:
 
       - name: Publish main package
         run: npm publish --access public --provenance --ignore-scripts
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   canary:
     needs: [check-version, build]
@@ -281,8 +277,6 @@ jobs:
       - name: Publish canary platform package (darwin-arm64)
         run: npm publish --access public --tag canary --provenance --ignore-scripts
         working-directory: npm/darwin-arm64
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Update optionalDependencies and version for canary
         run: |
@@ -293,5 +287,3 @@ jobs:
 
       - name: Publish canary main package
         run: npm publish --access public --tag canary --provenance --ignore-scripts
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
