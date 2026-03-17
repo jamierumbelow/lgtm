@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
 import { buildFormattedDiff, buildDiffOutput } from "../prepare-diff.ts";
-import type { FileDiff } from "/home/tommy/code/personal/lgtm/src/analysis/chunker.ts";
+import type { FileDiff } from "../../src/analysis/chunker.ts";
 
 const SIMPLE_DIFF = `diff --git a/src/foo.ts b/src/foo.ts
 index abc..def 100644

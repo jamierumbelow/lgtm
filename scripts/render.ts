@@ -6,17 +6,17 @@
  */
 
 import { readFileSync, writeFileSync } from "fs";
-import { renderHTML } from "/home/tommy/code/personal/lgtm/src/output/html.ts";
-import { createStableChangeGroupId } from "/home/tommy/code/personal/lgtm/src/analysis/change-id.ts";
-import { isLockfilePath } from "/home/tommy/code/personal/lgtm/src/llm/file-filters.ts";
-import type { Analysis } from "/home/tommy/code/personal/lgtm/src/analysis/analyzer.ts";
+import { renderHTML } from "../src/output/html.ts";
+import { createStableChangeGroupId } from "../src/analysis/change-id.ts";
+import { isLockfilePath } from "../src/llm/file-filters.ts";
+import type { Analysis } from "../src/analysis/analyzer.ts";
 import type {
   ChangeGroup,
   FileDiff,
   DiffHunk,
   RiskLevel,
   ReviewSuggestion,
-} from "/home/tommy/code/personal/lgtm/src/analysis/chunker.ts";
+} from "../src/analysis/chunker.ts";
 
 const VALID_RISK_LEVELS = new Set(["low", "medium", "high", "critical"]);
 const VALID_CHANGE_TYPES = new Set([

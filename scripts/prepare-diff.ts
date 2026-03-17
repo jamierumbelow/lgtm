@@ -7,17 +7,15 @@
 
 import { execSync } from "child_process";
 import { writeFileSync } from "fs";
-import { parseDiff } from "/home/tommy/code/personal/lgtm/src/analysis/chunker.ts";
-import type { FileDiff } from "/home/tommy/code/personal/lgtm/src/analysis/chunker.ts";
-import {
-  isLLMExcludedFile,
-} from "/home/tommy/code/personal/lgtm/src/llm/file-filters.ts";
+import { parseDiff } from "../src/analysis/chunker.ts";
+import type { FileDiff } from "../src/analysis/chunker.ts";
+import { isLLMExcludedFile } from "../src/llm/file-filters.ts";
 import {
   isGitRepository,
   getDefaultBranch,
   getCurrentBranch,
   hasUncommittedChanges,
-} from "/home/tommy/code/personal/lgtm/src/git/diff.ts";
+} from "../src/git/diff.ts";
 
 export const OUTPUT_PATH = "/tmp/lgtm-diff.json";
 

@@ -9,7 +9,7 @@ import {
   type DiffData,
   type AnalysisData,
 } from "../render.ts";
-import type { FileDiff, DiffHunk } from "/home/tommy/code/personal/lgtm/src/analysis/chunker.ts";
+import type { FileDiff, DiffHunk } from "../../src/analysis/chunker.ts";
 
 const makeHunk = (overrides: Partial<DiffHunk> = {}): DiffHunk => ({
   oldStart: 1,
