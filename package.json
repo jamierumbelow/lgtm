@@ -14,7 +14,8 @@
     "dev": "bun src/cli.ts",
     "build": "tsc",
     "lint": "eslint src/",
-    "test": "vitest"
+    "test": "vitest",
+    "test:scripts": "bun test scripts/"
   },
   "repository": {
     "type": "git",
