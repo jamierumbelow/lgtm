@@ -63,6 +63,7 @@ export interface ChangeGroup {
     | "config"
     | "docs"
     | "types"
+    | "chore"
     | "unknown";
 }
 

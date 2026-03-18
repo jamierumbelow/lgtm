@@ -242,6 +242,7 @@ function normalizeChangeType(raw: string): ChangeGroup["changeType"] {
     docs: "docs",
     config: "config",
     types: "types",
+    chore: "chore",
   };
   return map[raw] ?? "unknown";
 }

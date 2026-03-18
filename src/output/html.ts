@@ -99,6 +99,7 @@ export function renderHTML(analysis: Analysis): string {
     .change-type.config { background: #d2992233; color: #d29922; }
     .change-type.docs { background: #8b949e33; color: #8b949e; }
     .change-type.types { background: #79c0ff33; color: #79c0ff; }
+    .change-type.chore { background: #8b949e33; color: #8b949e; }
     .change-type.unknown { background: #30363d; color: #8b949e; }
 
     code {
@@ -904,6 +905,7 @@ export function renderHTML(analysis: Analysis): string {
     .changeset-list-type.config { color: #d29922; }
     .changeset-list-type.docs { color: #8b949e; }
     .changeset-list-type.types { color: #79c0ff; }
+    .changeset-list-type.chore { color: #8b949e; }
     .changeset-list-type.unknown { color: #8b949e; }
 
     .changeset-list-sep {
