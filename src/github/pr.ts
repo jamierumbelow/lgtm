@@ -171,12 +171,17 @@ async function fetchLocalDiff(base: string, head: string): Promise<PRData> {
     };
   }
 
+  // Try three-dot syntax first (merge-base diff, best for branches),
+  // fall back to two-dot (direct diff) if merge-base can't be computed
+  // (e.g. shallow clones, disconnected history, or missing objects)
+  const sep = canComputeMergeBase(base, head) ? "..." : "..";
+
   // Get name-status AND numstat in two calls (not N per-file calls)
-  const filesOutput = execSync(`git diff --name-status ${base}...${head}`, {
+  const filesOutput = execSync(`git diff --name-status ${base}${sep}${head}`, {
     encoding: "utf-8",
   });
 
-  const numstatOutput = execSync(`git diff --numstat ${base}...${head}`, {
+  const numstatOutput = execSync(`git diff --numstat ${base}${sep}${head}`, {
     encoding: "utf-8",
   });
 
@@ -211,7 +216,7 @@ async function fetchLocalDiff(base: string, head: string): Promise<PRData> {
     });
 
   // Get the full diff
-  const diff = execSync(`git diff ${base}...${head}`, {
+  const diff = execSync(`git diff ${base}${sep}${head}`, {
     encoding: "utf-8",
     maxBuffer: 50 * 1024 * 1024,
   });
@@ -222,6 +227,18 @@ async function fetchLocalDiff(base: string, head: string): Promise<PRData> {
     files,
     diff,
   };
+}
+
+function canComputeMergeBase(ref1: string, ref2: string): boolean {
+  try {
+    execSync(`git merge-base "${ref1}" "${ref2}"`, {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
