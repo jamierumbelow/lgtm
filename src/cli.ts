@@ -620,6 +620,10 @@ program
   .option("--verbose", "Enable verbose logging")
   .option("--fresh", "Bypass cache and fetch fresh data")
   .option(
+    "--exit-code",
+    "Exit with code 1 if critical or important suggestions are found"
+  )
+  .option(
     "--keep-alive",
     "Keep server running even after browser tab is closed"
   )
@@ -1129,6 +1133,17 @@ program
           } else {
             console.log("\n" + output);
           }
+        }
+      }
+      // Check for blocking suggestions when --exit-code is set
+      if (options.exitCode && analysis) {
+        const hasBlockingSuggestions = analysis.changeGroups.some((group) =>
+          group.suggestions?.some(
+            (s) => s.severity === "critical" || s.severity === "important"
+          )
+        );
+        if (hasBlockingSuggestions) {
+          process.exit(1);
         }
       }
     } catch (error) {
