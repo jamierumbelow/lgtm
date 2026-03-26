@@ -27,6 +27,7 @@ import {
   generateStructuredViaCLI,
   isCLIAvailable,
 } from "./cli-provider.js";
+import { ZodError } from "zod";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -123,7 +124,9 @@ export async function generateStructured<T>(
   let modelClient = await getModelClient(modelSpec);
 
   const maxRateLimitRetries = 3;
+  const maxSchemaRetries = 1;
   let rateLimitAttempts = 0;
+  let schemaRetryAttempts = 0;
 
   while (true) {
     try {
@@ -178,6 +181,23 @@ export async function generateStructured<T>(
       setCachedPromptResponse(cacheKey, result);
       return result;
     } catch (error) {
+      // Retry once on schema validation failures (e.g. LLM returns array instead of object)
+      if (error instanceof ZodError && schemaRetryAttempts < maxSchemaRetries) {
+        schemaRetryAttempts += 1;
+        if (verbose) {
+          console.warn(`[lgtm] LLM returned invalid structure, retrying...`);
+        }
+        continue;
+      }
+
+      // Wrap ZodError with a friendlier message
+      if (error instanceof ZodError) {
+        throw new Error(
+          `LLM returned an invalid response structure (${error.issues.map(i => i.message).join("; ")}). ` +
+          `Try again or use a different model with -m.`
+        );
+      }
+
       if (
         !isRateLimitError(error) ||
         rateLimitAttempts >= maxRateLimitRetries

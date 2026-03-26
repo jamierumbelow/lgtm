@@ -273,7 +273,18 @@ export async function generateStructuredViaCLI<T>(
   }
 
   // Validate against the schema
-  const result = schema.parse(parsed) as T;
+  let result: T;
+  try {
+    result = schema.parse(parsed) as T;
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      throw new Error(
+        `LLM returned an invalid response structure (${e.issues.map(i => i.message).join("; ")}). ` +
+        `Try again or use a different model with -m.`
+      );
+    }
+    throw e;
+  }
 
   // Estimate output tokens and record usage
   const estimatedOutputTokens = Math.ceil(text.length / 4);
