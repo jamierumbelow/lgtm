@@ -1,0 +1,1 @@
+/Users/james.rumbelow/workspace/repos/agentfiles/agentsmd/lgtm/AGENTS.md
