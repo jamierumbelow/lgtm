@@ -418,6 +418,7 @@ const runConfig = async (): Promise<void> => {
     console.log(`  export ${chalk.bold("LGTM_OPENAI_API_KEY")}=sk-...`);
     console.log(`  export ${chalk.bold("LGTM_GOOGLE_API_KEY")}=...`);
     console.log();
+    await handleDefaultModelSetup();
     return;
   }
 
